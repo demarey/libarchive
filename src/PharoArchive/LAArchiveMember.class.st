@@ -1,11 +1,11 @@
 "
-A PArchiveEntry is an immutable, high-level description of a single entry (a file,
+A LAArchiveMember is an immutable, high-level description of a single entry (a file,
 directory or symlink) inside an archive. It is built from the raw FFI archive_entry
 handle and exposes pathname, size, mtime, mode, filetype and convenience predicates
 such as isDirectory, isFile and isSymlink.
 "
 Class {
-	#name : 'PArchiveEntry',
+	#name : 'LAArchiveMember',
 	#superclass : 'Object',
 	#instVars : [
 		'pathname',
@@ -23,21 +23,32 @@ Class {
 }
 
 { #category : 'instance creation' }
-PArchiveEntry class >> fromHandle: ffiArchiveEntry library: libArchive [
+LAArchiveMember class >> fromHandle: ffiArchiveEntry library: libArchive [
 
 	^ self new
 		initializeFromHandle: ffiArchiveEntry library: libArchive;
 		yourself
 ]
 
+{ #category : 'instance creation' }
+LAArchiveMember class >> pathname: aPathname size: aSize mtime: aMtime mode: aMode filetype: aFiletype [
+
+	^ self new
+		setPathname: aPathname
+		size: aSize
+		mtime: aMtime
+		mode: aMode
+		filetype: aFiletype
+]
+
 { #category : 'accessing' }
-PArchiveEntry >> filetype [
+LAArchiveMember >> filetype [
 
 	^ filetype
 ]
 
 { #category : 'initialization' }
-PArchiveEntry >> initializeFromHandle: ffiArchiveEntry library: libArchive [
+LAArchiveMember >> initializeFromHandle: ffiArchiveEntry library: libArchive [
 
 	| symlinkValue |
 	pathname := libArchive entry_pathname: ffiArchiveEntry.
@@ -53,37 +64,36 @@ PArchiveEntry >> initializeFromHandle: ffiArchiveEntry library: libArchive [
 ]
 
 { #category : 'testing' }
-PArchiveEntry >> isDirectory [
+LAArchiveMember >> isDirectory [
 
 	^ filetype = AE_IFDIR
 ]
 
 { #category : 'testing' }
-PArchiveEntry >> isFile [
+LAArchiveMember >> isFile [
 
 	^ filetype = AE_IFREG
 ]
 
 { #category : 'testing' }
-PArchiveEntry >> isSymlink [
+LAArchiveMember >> isSymlink [
 
 	^ filetype = AE_IFLNK
 ]
 
 { #category : 'accessing' }
-PArchiveEntry >> mode [
+LAArchiveMember >> mode [
 
 	^ mode
 ]
 
 { #category : 'accessing' }
-PArchiveEntry >> mtime [
+LAArchiveMember >> mtime [
 
 	^ mtime
 ]
-
 { #category : 'private' }
-PArchiveEntry >> normalizedPathname: aPathname [
+LAArchiveMember >> normalizedPathname: aPathname [
 
 	aPathname ifNil: [ ^ aPathname ].
 	aPathname ifEmpty: [ ^ aPathname ].
@@ -92,20 +102,30 @@ PArchiveEntry >> normalizedPathname: aPathname [
 		ifFalse: [ aPathname ]
 ]
 
+{ #category : 'private' }
+LAArchiveMember >> setPathname: aPathname size: aSize mtime: aMtime mode: aMode filetype: aFiletype [
+
+	pathname := aPathname.
+	size := aSize.
+	mtime := aMtime.
+	mode := aMode.
+	filetype := aFiletype
+]
+
 { #category : 'accessing' }
-PArchiveEntry >> pathname [
+LAArchiveMember >> pathname [
 
 	^ pathname
 ]
 
 { #category : 'accessing' }
-PArchiveEntry >> size [
+LAArchiveMember >> size [
 
 	^ size
 ]
 
 { #category : 'accessing' }
-PArchiveEntry >> symlink [
+LAArchiveMember >> symlink [
 
 	^ symlink
 ]

@@ -1,11 +1,11 @@
 "
-PArchiveWriter builds a new archive (zip or tar) through libarchive from files and
+LAArchiveWriter builds a new archive (zip or tar) through libarchive from files and
 directories. Files can be added from arbitrary content, from real files on disk
 (preserving their POSIX permissions and modification time), or by recursively walking
 a whole directory. Handles are opened, flushed and freed for the caller.
 "
 Class {
-	#name : 'PArchiveWriter',
+	#name : 'LAArchiveWriter',
 	#superclass : 'Object',
 	#instVars : [
 		'file',
@@ -20,20 +20,20 @@ Class {
 }
 
 { #category : 'instance creation' }
-PArchiveWriter class >> toFile: aFileReference format: aFormat [
+LAArchiveWriter class >> toFile: aFileReference format: aFormat [
 	"aFormat is #zip or #tar."
 
 	^ self new initializeToFile: aFileReference format: aFormat
 ]
 
 { #category : 'building' }
-PArchiveWriter >> addDirectory: aRelativePath [
+LAArchiveWriter >> addDirectory: aRelativePath [
 
 	^ self addDirectory: aRelativePath mode: (AE_IFDIR bitOr: 8r755)
 ]
 
 { #category : 'building' }
-PArchiveWriter >> addDirectory: aRelativePath mode: aMode [
+LAArchiveWriter >> addDirectory: aRelativePath mode: aMode [
 
 	| entry |
 	entry := lib entry_new.
@@ -47,7 +47,7 @@ PArchiveWriter >> addDirectory: aRelativePath mode: aMode [
 ]
 
 { #category : 'building' }
-PArchiveWriter >> addEntriesFromDirectory: aDirectoryReference [
+LAArchiveWriter >> addEntriesFromDirectory: aDirectoryReference [
 
 	| entries |
 	entries := aDirectoryReference allChildren
@@ -67,7 +67,7 @@ PArchiveWriter >> addEntriesFromDirectory: aDirectoryReference [
 ]
 
 { #category : 'building' }
-PArchiveWriter >> addFileNamed: aRelativePath content: aByteArray [
+LAArchiveWriter >> addFileNamed: aRelativePath content: aByteArray [
 
 	^ self
 		addFileNamed: aRelativePath
@@ -77,7 +77,7 @@ PArchiveWriter >> addFileNamed: aRelativePath content: aByteArray [
 ]
 
 { #category : 'building' }
-PArchiveWriter >> addFileNamed: aRelativePath content: aByteArray mode: aMode mtime: aTimestamp [
+LAArchiveWriter >> addFileNamed: aRelativePath content: aByteArray mode: aMode mtime: aTimestamp [
 
 	| entry |
 	entry := lib entry_new.
@@ -99,7 +99,7 @@ PArchiveWriter >> addFileNamed: aRelativePath content: aByteArray mode: aMode mt
 ]
 
 { #category : 'building' }
-PArchiveWriter >> addFileNamed: aRelativePath from: aFileReference [
+LAArchiveWriter >> addFileNamed: aRelativePath from: aFileReference [
 	"Stream the file content in chunks, reusing a single buffer. Uses the file's real
 	permissions and modification time."
 
@@ -122,14 +122,14 @@ PArchiveWriter >> addFileNamed: aRelativePath from: aFileReference [
 ]
 
 { #category : 'private' }
-PArchiveWriter >> assertOk: aResult [
+LAArchiveWriter >> assertOk: aResult [
 
 	aResult = ARCHIVE_OK ifFalse: [
-		PArchiveError signalOn: file errorString: (LibArchive uniqueInstance error_string: archive) ]
+		LAArchiveError signalOn: file errorString: (LibArchive uniqueInstance error_string: archive) ]
 ]
 
 { #category : 'finalization' }
-PArchiveWriter >> finish [
+LAArchiveWriter >> finish [
 
 	archive ifNil: [ ^ self ].
 	lib write_close: archive.
@@ -140,7 +140,7 @@ PArchiveWriter >> finish [
 ]
 
 { #category : 'initialization' }
-PArchiveWriter >> initializeToFile: aFileReference format: aFormat [
+LAArchiveWriter >> initializeToFile: aFileReference format: aFormat [
 
 	file := aFileReference.
 	lib := LibArchive uniqueInstance.
@@ -158,7 +158,7 @@ PArchiveWriter >> initializeToFile: aFileReference format: aFormat [
 ]
 
 { #category : 'private' }
-PArchiveWriter >> modeForFile: aFileReference ofType: typeBits [
+LAArchiveWriter >> modeForFile: aFileReference ofType: typeBits [
 
 	| permBits |
 	permBits := (aFileReference fileSystem isMemoryFileSystem)
@@ -168,7 +168,7 @@ PArchiveWriter >> modeForFile: aFileReference ofType: typeBits [
 ]
 
 { #category : 'private' }
-PArchiveWriter >> mtimeOf: aFileReference [
+LAArchiveWriter >> mtimeOf: aFileReference [
 
 	aFileReference fileSystem isMemoryFileSystem
 		ifTrue: [ ^ nil ].

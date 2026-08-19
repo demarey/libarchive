@@ -1,12 +1,12 @@
 "
-PArchiveReader opens an existing archive (zip, tar, ...) through libarchive and offers
+LAArchiveReader opens an existing archive (zip, tar, ...) through libarchive and offers
 high-level reading operations: enumerating its entries, reading the raw bytes of an
 entry, and extracting all entries natively to a target directory (while preserving
 permissions and timestamps). It takes care of opening, closing and freeing the
 underlying libarchive handle in all circumstances.
 "
 Class {
-	#name : 'PArchiveReader',
+	#name : 'LAArchiveReader',
 	#superclass : 'Object',
 	#instVars : [
 		'file'
@@ -19,7 +19,7 @@ Class {
 }
 
 { #category : 'defaults' }
-PArchiveReader class >> defaultExtractFlags [
+LAArchiveReader class >> defaultExtractFlags [
 
 	^ ARCHIVE_EXTRACT_PERM bitOr: (ARCHIVE_EXTRACT_TIME
 		bitOr: (ARCHIVE_EXTRACT_SECURE_NODOTDOT
@@ -27,27 +27,27 @@ PArchiveReader class >> defaultExtractFlags [
 ]
 
 { #category : 'instance creation' }
-PArchiveReader class >> onFile: aFileReference [
+LAArchiveReader class >> onFile: aFileReference [
 
 	^ self new initializeFile: aFileReference
 ]
 
 { #category : 'private' }
-PArchiveReader >> assertExtractOk: aResult lib: lib archive: archive [
+LAArchiveReader >> assertExtractOk: aResult lib: lib archive: archive [
 
 	aResult >= ARCHIVE_OK ifFalse: [
-		PArchiveError signalOn: file errorString: (lib error_string: archive) ]
+		LAArchiveError signalOn: file errorString: (lib error_string: archive) ]
 ]
 
 { #category : 'private' }
-PArchiveReader >> assertOk: aResult lib: lib archive: archive [
+LAArchiveReader >> assertOk: aResult lib: lib archive: archive [
 
 	aResult = ARCHIVE_OK ifFalse: [
-		PArchiveError signalOn: file errorString: (lib error_string: archive) ]
+		LAArchiveError signalOn: file errorString: (lib error_string: archive) ]
 ]
 
 { #category : 'reading' }
-PArchiveReader >> contentsOf: aPArchiveEntry [
+LAArchiveReader >> contentsOf: aLAArchiveMember [
 
 	| result |
 	result := nil.
@@ -57,10 +57,10 @@ PArchiveReader >> contentsOf: aPArchiveEntry [
 		result := ByteArray new: 0.
 		holder := ArchiveEntry newValueHolder.
 		[ (lib read_next_headerArg1: archive arg2: holder) = ARCHIVE_OK ] whileTrue: [
-			(lib entry_pathname: holder value) = aPArchiveEntry pathname
+			(lib entry_pathname: holder value) = aLAArchiveMember pathname
 				ifTrue: [
 					found := true.
-					size := aPArchiveEntry size.
+					size := aLAArchiveMember size.
 					result := ByteArray new: size.
 					buffer := ByteArray new: 65536.
 					offset := 1.
@@ -73,7 +73,7 @@ PArchiveReader >> contentsOf: aPArchiveEntry [
 ]
 
 { #category : 'reading' }
-PArchiveReader >> entries [
+LAArchiveReader >> entries [
 
 	| result |
 	result := nil.
@@ -82,25 +82,25 @@ PArchiveReader >> entries [
 		entries := OrderedCollection new.
 		holder := ArchiveEntry newValueHolder.
 		[ (lib read_next_headerArg1: archive arg2: holder) = ARCHIVE_OK ] whileTrue: [
-			entries add: (PArchiveEntry fromHandle: holder value library: lib) ].
+			entries add: (LAArchiveMember fromHandle: holder value library: lib) ].
 		result := entries ].
 	^ result
 ]
 
 { #category : 'extracting' }
-PArchiveReader >> extractTo: aDirectoryReference [
+LAArchiveReader >> extractTo: aDirectoryReference [
 
 	self extractTo: aDirectoryReference flags: self class defaultExtractFlags
 ]
 
 { #category : 'extracting' }
-PArchiveReader >> extractTo: aDirectoryReference flags: flags [
+LAArchiveReader >> extractTo: aDirectoryReference flags: flags [
 	"Extract all entries into aDirectoryReference using libarchive's native extractor.
 	The process working directory is temporarily switched to aDirectoryReference
 	(because archive_read_extract writes relative to it), then restored."
 
 	aDirectoryReference ensureCreateDirectory.
-	PArchiveWorkingDirectory in: aDirectoryReference during: [
+	LAArchiveWorkingDirectory in: aDirectoryReference during: [
 		self withOpenArchive: [ :lib :archive |
 			| holder |
 			holder := ArchiveEntry newValueHolder.
@@ -111,13 +111,13 @@ PArchiveReader >> extractTo: aDirectoryReference flags: flags [
 ]
 
 { #category : 'initialization' }
-PArchiveReader >> initializeFile: aFileReference [
+LAArchiveReader >> initializeFile: aFileReference [
 
 	file := aFileReference
 ]
 
 { #category : 'private' }
-PArchiveReader >> withOpenArchive: aBlock [
+LAArchiveReader >> withOpenArchive: aBlock [
 
 	| lib archive |
 	lib := LibArchive uniqueInstance.
