@@ -1,3 +1,9 @@
+"
+PArchiveWriter builds a new archive (zip or tar) through libarchive from files and
+directories. Files can be added from arbitrary content, from real files on disk
+(preserving their POSIX permissions and modification time), or by recursively walking
+a whole directory. Handles are opened, flushed and freed for the caller.
+"
 Class {
 	#name : 'PArchiveWriter',
 	#superclass : 'Object',

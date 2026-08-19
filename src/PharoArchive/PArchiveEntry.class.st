@@ -1,3 +1,9 @@
+"
+A PArchiveEntry is an immutable, high-level description of a single entry (a file,
+directory or symlink) inside an archive. It is built from the raw FFI archive_entry
+handle and exposes pathname, size, mtime, mode, filetype and convenience predicates
+such as isDirectory, isFile and isSymlink.
+"
 Class {
 	#name : 'PArchiveEntry',
 	#superclass : 'Object',

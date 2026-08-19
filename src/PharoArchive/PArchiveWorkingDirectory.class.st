@@ -1,3 +1,10 @@
+"
+PArchiveWorkingDirectory temporarily changes the process working directory for the
+duration of a block and faithfully restores it afterwards. The underlying chdir call
+is dispatched according to the platform (POSIX chdir on Linux/macOS, wide-character
+_wchdir on Windows), since libarchive's native extraction writes relative to the
+current working directory.
+"
 Class {
 	#name : 'PArchiveWorkingDirectory',
 	#superclass : 'Object',

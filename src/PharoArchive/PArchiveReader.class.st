@@ -1,3 +1,10 @@
+"
+PArchiveReader opens an existing archive (zip, tar, ...) through libarchive and offers
+high-level reading operations: enumerating its entries, reading the raw bytes of an
+entry, and extracting all entries natively to a target directory (while preserving
+permissions and timestamps). It takes care of opening, closing and freeing the
+underlying libarchive handle in all circumstances.
+"
 Class {
 	#name : 'PArchiveReader',
 	#superclass : 'Object',
