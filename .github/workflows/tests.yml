@@ -10,19 +10,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          path: libarchive
-      - uses: actions/checkout@v4
-        with:
-          repository: pharo-cig/pharo-archive
-          path: pharo-archive
 
       - name: Install libarchive
         run: |
           sudo apt-get update
           sudo apt-get install -y libarchive-dev
-          mkdir -p libarchive/CIG/lib
-          ln -sf /usr/lib/x86_64-linux-gnu/libarchive.so libarchive/CIG/lib/libarchive.so
+          mkdir -p CIG/lib
+          ln -sf /usr/lib/x86_64-linux-gnu/libarchive.so CIG/lib/libarchive.so
 
       - name: Setup Pharo
         uses: pharo-project/pharo-setup-gha@main
@@ -30,12 +24,10 @@ jobs:
           version: 14
 
       - name: Load project
-        working-directory: libarchive
         run: |
           $PHARO --headless Pharo.image metacello \
-            install "gitlocal:///${GITHUB_WORKSPACE}/libarchive/src" PharoArchive \
+            install "gitlocal:///${GITHUB_WORKSPACE}/src" PharoArchive \
             --save
 
       - name: Run tests
-        working-directory: libarchive
         run: $PHARO --headless Pharo.image test PharoArchive-Tests --fail-on-failure
