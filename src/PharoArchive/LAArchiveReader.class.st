@@ -8,6 +8,8 @@ underlying libarchive handle in all circumstances.
 Class {
 	#name : 'LAArchiveReader',
 	#superclass : 'Object',
+	#traits : 'LAArchiveFFI',
+	#classTraits : 'LAArchiveFFI classTrait',
 	#instVars : [
 		'file'
 	],
@@ -30,20 +32,6 @@ LAArchiveReader class >> defaultExtractFlags [
 LAArchiveReader class >> onFile: aFileReference [
 
 	^ self new initializeFile: aFileReference
-]
-
-{ #category : 'private' }
-LAArchiveReader >> assertExtractOk: aResult lib: lib archive: archive [
-
-	aResult >= ARCHIVE_OK ifFalse: [
-		LAArchiveError signalOn: file errorString: (lib error_string: archive) ]
-]
-
-{ #category : 'private' }
-LAArchiveReader >> assertOk: aResult lib: lib archive: archive [
-
-	aResult = ARCHIVE_OK ifFalse: [
-		LAArchiveError signalOn: file errorString: (lib error_string: archive) ]
 ]
 
 { #category : 'reading' }
@@ -105,9 +93,11 @@ LAArchiveReader >> extractTo: aDirectoryReference flags: flags [
 			| holder |
 			holder := ArchiveEntry newValueHolder.
 			[ (lib read_next_headerArg1: archive arg2: holder) = ARCHIVE_OK ] whileTrue: [
-				self assertExtractOk: (lib read_extractArg1: archive arg2: holder value flags: flags)
+				self
+					assertExtractOk: (lib read_extractArg1: archive arg2: holder value flags: flags)
 					lib: lib
-					archive: archive ] ] ]
+					archive: archive
+					reference: file ] ] ]
 ]
 
 { #category : 'initialization' }
@@ -125,12 +115,14 @@ LAArchiveReader >> withOpenArchive: aBlock [
 	[ 
 		lib read_support_filter_all: archive.
 		lib read_support_format_all: archive.
-		self assertOk: (lib
-				read_open_filenameArg1: archive
-				_filename: file fullName
-				_block_size: 10240)
+		self
+			assertOk: (lib
+					read_open_filenameArg1: archive
+					_filename: file fullName
+					_block_size: 10240)
 			lib: lib
-			archive: archive.
+			archive: archive
+			reference: file.
 		aBlock value: lib value: archive ]
 	ensure: [
 		lib read_close: archive.

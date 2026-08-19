@@ -7,6 +7,8 @@ a whole directory. Handles are opened, flushed and freed for the caller.
 Class {
 	#name : 'LAArchiveWriter',
 	#superclass : 'Object',
+	#traits : 'LAFileMetadata + LAArchiveFFI',
+	#classTraits : 'LAFileMetadata classTrait + LAArchiveFFI classTrait',
 	#instVars : [
 		'file',
 		'lib',
@@ -60,7 +62,7 @@ LAArchiveWriter >> addEntriesFromDirectory: aDirectoryReference [
 		child isDirectory
 			ifTrue: [ self
 					addDirectory: relative
-					mode: (self modeForFile: child ofType: AE_IFDIR) ]
+					mode: (self modeFor: child ofType: AE_IFDIR) ]
 			ifFalse: [ self addFileNamed: relative from: child ] ].
 
 	^ self
@@ -106,7 +108,7 @@ LAArchiveWriter >> addFileNamed: aRelativePath from: aFileReference [
 	| entry buffer n |
 	entry := lib entry_new.
 	lib entry_set_pathnameArg1: entry arg2: aRelativePath.
-	lib entry_set_modeArg1: entry arg2: (self modeForFile: aFileReference ofType: AE_IFREG).
+	lib entry_set_modeArg1: entry arg2: (self modeFor: aFileReference ofType: AE_IFREG).
 	lib entry_set_sizeArg1: entry arg2: aFileReference size.
 	(self mtimeOf: aFileReference) ifNotNil: [ :t |
 		lib entry_set_mtimeArg1: entry arg2: t arg3: 0 ].
@@ -119,13 +121,6 @@ LAArchiveWriter >> addFileNamed: aRelativePath from: aFileReference [
 	lib entry_free: entry.
 
 	^ self
-]
-
-{ #category : 'private' }
-LAArchiveWriter >> assertOk: aResult [
-
-	aResult = ARCHIVE_OK ifFalse: [
-		LAArchiveError signalOn: file errorString: (LibArchive uniqueInstance error_string: archive) ]
 ]
 
 { #category : 'finalization' }
@@ -149,30 +144,14 @@ LAArchiveWriter >> initializeToFile: aFileReference format: aFormat [
 		aFormat = #zip
 			ifTrue: [ lib write_set_format_zip: archive ]
 			ifFalse: [ lib write_set_format_pax: archive ].
-		self assertOk: (lib write_open_filenameArg1: archive _file: aFileReference fullName) ]
+		self
+			assertOk: (lib write_open_filenameArg1: archive _file: aFileReference fullName)
+			lib: lib
+			archive: archive
+			reference: aFileReference ]
 	on: Error
 	do: [ :error |
 		lib write_free: archive.
 		archive := nil.
 		error signal ]
-]
-
-{ #category : 'private' }
-LAArchiveWriter >> modeForFile: aFileReference ofType: typeBits [
-
-	| permBits |
-	permBits := (aFileReference fileSystem isMemoryFileSystem)
-		ifTrue: [ typeBits = AE_IFDIR ifTrue: [ 8r755 ] ifFalse: [ 8r644 ] ]
-		ifFalse: [ aFileReference permissions posixPermission ].
-	^ typeBits bitOr: permBits
-]
-
-{ #category : 'private' }
-LAArchiveWriter >> mtimeOf: aFileReference [
-
-	aFileReference fileSystem isMemoryFileSystem
-		ifTrue: [ ^ nil ].
-	^ aFileReference modificationTime
-		ifNil: [ nil ]
-		ifNotNil: [ :t | t asUnixTime ]
 ]

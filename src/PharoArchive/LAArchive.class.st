@@ -8,6 +8,8 @@ streaming operations delegate to LAArchiveReader and LAArchiveWriter.
 Class {
 	#name : 'LAArchive',
 	#superclass : 'Object',
+	#traits : 'LAFileMetadata',
+	#classTraits : 'LAFileMetadata classTrait',
 	#instVars : [
 		'members',
 		'contents',
@@ -49,19 +51,14 @@ LAArchive >> addFile: aFileReference [
 { #category : 'archive operations' }
 LAArchive >> addFile: aFileReference as: aName [
 
-	| member bytes permBits mtimeValue |
+	| member bytes mtimeValue |
 	bytes := aFileReference binaryReadStreamDo: [ :stream | stream contents ].
-	permBits := (aFileReference fileSystem isMemoryFileSystem)
-		ifTrue: [ 8r644 ]
-		ifFalse: [ aFileReference permissions posixPermission ].
-	mtimeValue := (aFileReference fileSystem isMemoryFileSystem)
-		ifTrue: [ 0 ]
-		ifFalse: [ aFileReference modificationTime asUnixTime ].
+	mtimeValue := (self mtimeOf: aFileReference) ifNil: [ 0 ].
 	member := LAArchiveMember
 		pathname: aName
 		size: bytes size
 		mtime: mtimeValue
-		mode: (AE_IFREG bitOr: permBits)
+		mode: (self modeFor: aFileReference ofType: AE_IFREG)
 		filetype: AE_IFREG.
 	contents at: aName put: bytes.
 	self addMember: member.
