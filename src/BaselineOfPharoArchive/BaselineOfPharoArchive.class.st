@@ -12,7 +12,7 @@ BaselineOfPharoArchive >> baseline: spec [
 	spec for: #common do: [
 		spec
 			baseline: 'Archive'
-			with: [ spec repository: 'tonel://../pharo-archive/src' ].
+			with: [ spec repository: 'github://pharo-cig/pharo-archive:main/src' ].
 		spec
 			package: 'PharoArchive'
 			with: [ spec requires: #('Archive') ].
