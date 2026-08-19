@@ -1,6 +1,12 @@
 Extension { #name : 'LibC' }
 
 { #category : '*PharoArchive' }
+LibC >> chdirPosix: aPathString [
+
+	^ self ffiCall: #(int chdir(const char* aPathString))
+]
+
+{ #category : '*PharoArchive' }
 LibC >> chdirSafe: aPathString [
 	"Change the process working directory. Dispatches on the current platform because the
 	symbol differs between POSIX (chdir) and Windows (_wchdir, wide-character)."
@@ -8,12 +14,6 @@ LibC >> chdirSafe: aPathString [
 	^ OSPlatform current isWindows
 		ifTrue: [ self wchdirUtf16: aPathString ]
 		ifFalse: [ self chdirPosix: aPathString ]
-]
-
-{ #category : '*PharoArchive' }
-LibC >> chdirPosix: aPathString [
-
-	^ self ffiCall: #(int chdir(const char* aPathString))
 ]
 
 { #category : '*PharoArchive' }

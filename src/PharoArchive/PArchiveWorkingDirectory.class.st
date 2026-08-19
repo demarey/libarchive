@@ -5,6 +5,13 @@ Class {
 	#package : 'PharoArchive'
 }
 
+{ #category : 'private' }
+PArchiveWorkingDirectory class >> chdirTo: aPathString [
+
+	((LibC uniqueInstance) chdirSafe: aPathString) = 0
+		ifFalse: [ PArchiveError signal: 'chdir failed for: ', aPathString ]
+]
+
 { #category : 'accessing' }
 PArchiveWorkingDirectory class >> currentWorkingDirectory [
 
@@ -21,11 +28,4 @@ PArchiveWorkingDirectory class >> in: aDirectoryReference during: aBlock [
 	[ self chdirTo: aDirectoryReference fullName.
 	  aBlock value ]
 	ensure: [ self chdirTo: previous ]
-]
-
-{ #category : 'private' }
-PArchiveWorkingDirectory class >> chdirTo: aPathString [
-
-	((LibC uniqueInstance) chdirSafe: aPathString) = 0
-		ifFalse: [ PArchiveError signal: 'chdir failed for: ', aPathString ]
 ]

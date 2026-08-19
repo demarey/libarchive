@@ -46,16 +46,6 @@ PArchiveEntry >> initializeFromHandle: ffiArchiveEntry library: libArchive [
 		ifFalse: [ symlinkValue ]
 ]
 
-{ #category : 'private' }
-PArchiveEntry >> normalizedPathname: aPathname [
-
-	aPathname isNil ifTrue: [ ^ aPathname ].
-	aPathname isEmpty ifTrue: [ ^ aPathname ].
-	^ aPathname last = $/
-		ifTrue: [ aPathname allButLast ]
-		ifFalse: [ aPathname ]
-]
-
 { #category : 'testing' }
 PArchiveEntry >> isDirectory [
 
@@ -84,6 +74,16 @@ PArchiveEntry >> mode [
 PArchiveEntry >> mtime [
 
 	^ mtime
+]
+
+{ #category : 'private' }
+PArchiveEntry >> normalizedPathname: aPathname [
+
+	aPathname ifNil: [ ^ aPathname ].
+	aPathname ifEmpty: [ ^ aPathname ].
+	^ aPathname last = $/
+		ifTrue: [ aPathname allButLast ]
+		ifFalse: [ aPathname ]
 ]
 
 { #category : 'accessing' }

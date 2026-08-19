@@ -45,7 +45,7 @@ PArchiveWriter >> addEntriesFromDirectory: aDirectoryReference [
 
 	| entries |
 	entries := aDirectoryReference allChildren
-		select: [ :child | (child resolve = aDirectoryReference resolve) not ]
+		reject: [ :child | child resolve = aDirectoryReference resolve ]
 		thenCollect: [ :child | child ].
 	entries := entries asSortedCollection: [ :a :b | a pathString <= b pathString ].
 	entries do: [ :child |
@@ -125,7 +125,7 @@ PArchiveWriter >> assertOk: aResult [
 { #category : 'finalization' }
 PArchiveWriter >> finish [
 
-	archive isNil ifTrue: [ ^ self ].
+	archive ifNil: [ ^ self ].
 	lib write_close: archive.
 	lib write_free: archive.
 	archive := nil.

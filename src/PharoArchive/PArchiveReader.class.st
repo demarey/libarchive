@@ -25,6 +25,20 @@ PArchiveReader class >> onFile: aFileReference [
 	^ self new initializeFile: aFileReference
 ]
 
+{ #category : 'private' }
+PArchiveReader >> assertExtractOk: aResult lib: lib archive: archive [
+
+	aResult >= ARCHIVE_OK ifFalse: [
+		PArchiveError signalOn: file errorString: (lib error_string: archive) ]
+]
+
+{ #category : 'private' }
+PArchiveReader >> assertOk: aResult lib: lib archive: archive [
+
+	aResult = ARCHIVE_OK ifFalse: [
+		PArchiveError signalOn: file errorString: (lib error_string: archive) ]
+]
+
 { #category : 'reading' }
 PArchiveReader >> contentsOf: aPArchiveEntry [
 
@@ -64,20 +78,6 @@ PArchiveReader >> entries [
 			entries add: (PArchiveEntry fromHandle: holder value library: lib) ].
 		result := entries ].
 	^ result
-]
-
-{ #category : 'private' }
-PArchiveReader >> assertOk: aResult lib: lib archive: archive [
-
-	aResult = ARCHIVE_OK ifFalse: [
-		PArchiveError signalOn: file errorString: (lib error_string: archive) ]
-]
-
-{ #category : 'private' }
-PArchiveReader >> assertExtractOk: aResult lib: lib archive: archive [
-
-	aResult >= ARCHIVE_OK ifFalse: [
-		PArchiveError signalOn: file errorString: (lib error_string: archive) ]
 ]
 
 { #category : 'extracting' }
