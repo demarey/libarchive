@@ -12,7 +12,8 @@ Class {
 	#instVars : [
 		'file',
 		'lib',
-		'archive'
+		'archive',
+		'stream'
 	],
 	#pools : [
 		'ArchiveConstants'
@@ -26,6 +27,14 @@ LAArchiveWriter class >> toFile: aFileReference format: aFormat [
 	"aFormat is #zip or #tar."
 
 	^ self new initializeToFile: aFileReference format: aFormat
+]
+
+{ #category : 'instance creation' }
+LAArchiveWriter class >> toStream: aBinaryWriteStream format: aFormat [
+	"Build the archive by streaming its bytes directly into aBinaryWriteStream through an
+	FFI write callback (no temporary file involved)."
+
+	^ self new initializeToStream: aBinaryWriteStream format: aFormat
 ]
 
 { #category : 'building' }
@@ -132,6 +141,49 @@ LAArchiveWriter >> finish [
 	archive := nil.
 	lib := nil.
 	^ self
+]
+
+{ #category : 'private' }
+LAArchiveWriter >> initializeToStream: aBinaryWriteStream format: aFormat [
+	"Open the archive writing through FFI callbacks that append libarchive's output
+	buffer to aBinaryWriteStream, using proper Pharo streams instead of a temp file."
+
+	| openCallback writeCallback closeCallback |
+	stream := aBinaryWriteStream.
+	lib := LibArchive uniqueInstance.
+	archive := lib write_new.
+	[ 
+		aFormat = #zip
+			ifTrue: [ lib write_set_format_zip: archive ]
+			ifFalse: [ lib write_set_format_pax: archive ].
+		openCallback := FFICallback
+			signature: #(int (void* a, void* client_data))
+			block: [ :a :clientData | 0 ].
+		writeCallback := FFICallback
+			signature: #(long (void* a, void* client_data, const void* buffer, size_t length))
+			block: [ :a :clientData :buffer :length |
+				stream
+					nextPutAll: ((ExternalData fromHandle: buffer type: ExternalType unsignedByte)
+							copyFrom: 1 to: length).
+				length ].
+		closeCallback := FFICallback
+			signature: #(int (void* a, void* client_data))
+			block: [ :a :clientData | 0 ].
+		self
+			assertOk: (lib
+					write_openArg1: archive
+					arg2: ExternalAddress null
+					arg3: openCallback
+					arg4: writeCallback
+					arg5: closeCallback)
+			lib: lib
+			archive: archive
+			reference: 'stream' ]
+	on: Error
+	do: [ :error |
+		lib write_free: archive.
+		archive := nil.
+		error signal ]
 ]
 
 { #category : 'initialization' }

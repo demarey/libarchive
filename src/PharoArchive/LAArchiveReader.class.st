@@ -11,7 +11,8 @@ Class {
 	#traits : 'LAArchiveFFI',
 	#classTraits : 'LAArchiveFFI classTrait',
 	#instVars : [
-		'file'
+		'file',
+		'bytes'
 	],
 	#pools : [
 		'ArchiveConstants'
@@ -29,9 +30,22 @@ LAArchiveReader class >> defaultExtractFlags [
 ]
 
 { #category : 'instance creation' }
+LAArchiveReader class >> onBytes: aByteArray [
+
+	^ self new initializeBytes: aByteArray
+]
+
+{ #category : 'instance creation' }
 LAArchiveReader class >> onFile: aFileReference [
 
 	^ self new initializeFile: aFileReference
+]
+
+{ #category : 'instance creation' }
+LAArchiveReader class >> onStream: aReadStream [
+	"Read the archive from an already-open read stream by materializing its bytes."
+
+	^ self onBytes: aReadStream contents
 ]
 
 { #category : 'reading' }
@@ -101,6 +115,12 @@ LAArchiveReader >> extractTo: aDirectoryReference flags: flags [
 ]
 
 { #category : 'initialization' }
+LAArchiveReader >> initializeBytes: aByteArray [
+
+	bytes := aByteArray
+]
+
+{ #category : 'initialization' }
 LAArchiveReader >> initializeFile: aFileReference [
 
 	file := aFileReference
@@ -115,14 +135,25 @@ LAArchiveReader >> withOpenArchive: aBlock [
 	[ 
 		lib read_support_filter_all: archive.
 		lib read_support_format_all: archive.
-		self
-			assertOk: (lib
-					read_open_filenameArg1: archive
-					_filename: file fullName
-					_block_size: 10240)
-			lib: lib
-			archive: archive
-			reference: file.
+		bytes isNil
+			ifTrue: [
+				self
+					assertOk: (lib
+							read_open_filenameArg1: archive
+							_filename: file fullName
+							_block_size: 10240)
+					lib: lib
+					archive: archive
+					reference: file ]
+			ifFalse: [
+				self
+					assertOk: (lib
+							read_open_memoryArg1: archive
+							buff: bytes
+							size: bytes size)
+					lib: lib
+					archive: archive
+					reference: 'archive bytes' ].
 		aBlock value: lib value: archive ]
 	ensure: [
 		lib read_close: archive.
