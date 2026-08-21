@@ -180,6 +180,27 @@ LAArchiveTest >> testReadBackAndExtractAll [
 ]
 
 { #category : 'helpers' }
+LAArchiveTest >> readFilePathsOfFormat: aFormat [
+
+	| folder base writer reader filePaths |
+	folder := self memoryFilesystemFolder.
+	base := self baseTempDirectory.
+	base ensureCreateDirectory.
+	[ 
+		writer := LAArchiveWriter
+			toFile: (base / 'test.archive')
+			format: aFormat.
+		writer addEntriesFromDirectory: folder.
+		writer finish.
+		reader := LAArchiveReader onFile: (base / 'test.archive').
+		filePaths := reader entries
+			reject: #isDirectory
+			thenCollect: [ :e | e pathname ] ]
+	ensure: [ base ensureDeleteAll ].
+	^ filePaths asSet
+]
+
+{ #category : 'helpers' }
 LAArchiveTest >> readArchiveOfFormat: aFormat [
 
 	| folder base writer reader |
@@ -300,4 +321,67 @@ LAArchiveTest >> testFilePermissionsFromRealFile [
 	member := archive memberNamed: 'secret.txt'.
 	[ self assert: (member mode bitAnd: 8r7777) equals: 8r600 ]
 	ensure: [ base ensureDeleteAll ]
+]
+
+{ #category : 'tests' }
+LAArchiveTest >> testWriteRoundTripFormats [
+	"Round-trip general formats. Directory encoding differs per format (7zip reorders,
+	cpio omits dir entries), so we compare the set of file pathnames."
+
+	self assert: (self readFilePathsOfFormat: #sevenzip)
+		equals: #('docs/notes.md' 'hello.txt' 'images/pixel.bin') asSet.
+	self assert: (self readFilePathsOfFormat: #cpio)
+		equals: #('docs/notes.md' 'hello.txt' 'images/pixel.bin') asSet
+]
+
+{ #category : 'tests' }
+LAArchiveTest >> testWriteToFileDuring [
+
+	| base out |
+	base := self baseTempDirectory.
+	base ensureCreateDirectory.
+	out := base / 'x.zip'.
+	[ 
+		LAArchiveWriter writeToFile: out format: #zip during: [ :writer |
+			writer addFileNamed: 'a.txt' content: 'hi' asByteArray ].
+		self assert: out exists.
+		self assert: (LAArchiveReader onFile: out) entries size equals: 1 ]
+	ensure: [ base ensureDeleteAll ]
+]
+
+{ #category : 'tests' }
+LAArchiveTest >> testWriteToStreamDuring [
+
+	| stream reader |
+	stream := (ByteArray new: 0) writeStream.
+	LAArchiveWriter writeToStream: stream format: #zip during: [ :writer |
+		writer addFileNamed: 'a.txt' content: 'hi' asByteArray ].
+	reader := LAArchiveReader onBytes: stream contents.
+	self assert: reader entries size equals: 1
+]
+
+{ #category : 'tests' }
+LAArchiveTest >> testDuringEnsuresFinishOnException [
+
+	| base out |
+	base := self baseTempDirectory.
+	base ensureCreateDirectory.
+	out := base / 'x.zip'.
+	[ 
+		self should: [
+			LAArchiveWriter writeToFile: out format: #zip during: [ :writer |
+				writer addFileNamed: 'a.txt' content: 'hi' asByteArray.
+				self error: 'boom' ] ]
+			raise: Error.
+		self assert: out exists.
+		self assert: (LAArchiveReader onFile: out) entries size equals: 1 ]
+	ensure: [ base ensureDeleteAll ]
+]
+
+{ #category : 'tests' }
+LAArchiveTest >> testUnknownFormatRaises [
+
+	self should: [ LAArchiveFormat named: #doesNotExist ] raise: LAArchiveError.
+	self assert: LAArchiveFormat zip libarchiveName equals: 'zip'.
+	self assert: LAArchiveFormat tar libarchiveName equals: 'pax'
 ]

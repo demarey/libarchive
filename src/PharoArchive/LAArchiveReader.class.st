@@ -1,9 +1,9 @@
 "
-LAArchiveReader opens an existing archive (zip, tar, ...) through libarchive and offers
-high-level reading operations: enumerating its entries, reading the raw bytes of an
-entry, and extracting all entries natively to a target directory (while preserving
-permissions and timestamps). It takes care of opening, closing and freeing the
-underlying libarchive handle in all circumstances.
+LAArchiveReader opens an existing archive (zip, tar, 7zip, ...) through libarchive and offers
+high-level reading operations: enumerating its entries, reading the raw bytes of an entry,
+and extracting all entries natively to a target directory (while preserving permissions and
+timestamps). It takes care of opening, closing and freeing the underlying libarchive handle
+in all circumstances. Libarchive auto-detects the format, so reading is format-agnostic.
 "
 Class {
 	#name : 'LAArchiveReader',
@@ -53,24 +53,30 @@ LAArchiveReader >> contentsOf: aLAArchiveMember [
 
 	| result |
 	result := nil.
-	self withOpenArchive: [ :lib :archive |
-		| holder found size buffer offset n |
-		found := false.
-		result := ByteArray new: 0.
-		holder := ArchiveEntry newValueHolder.
-		[ (lib read_next_headerArg1: archive arg2: holder) = ARCHIVE_OK ] whileTrue: [
-			(lib entry_pathname: holder value) = aLAArchiveMember pathname
-				ifTrue: [
-					found := true.
-					size := aLAArchiveMember size.
-					result := ByteArray new: size.
-					buffer := ByteArray new: 65536.
-					offset := 1.
-					[ (n := lib read_dataArg1: archive arg2: buffer size_t: buffer size) > 0 ]
-						whileTrue: [
-							result replaceFrom: offset to: offset + n - 1 with: buffer startingAt: 1.
-							offset := offset + n ] ] ].
-		self assert: found ].
+	self entriesDo: [ :lib :archive :ffiEntry |
+		(lib entry_pathname: ffiEntry) = aLAArchiveMember pathname
+			ifTrue: [
+				result := self
+					dataForEntry: ffiEntry
+					size: aLAArchiveMember size
+					lib: lib
+					archive: archive.
+				LAAbortReading signal ] ].
+	^ result
+]
+
+{ #category : 'private' }
+LAArchiveReader >> dataForEntry: ffiEntry size: size lib: lib archive: archive [
+	"Read the current entry's raw payload into a ByteArray."
+
+	| buffer result offset n |
+	result := ByteArray new: size.
+	buffer := ByteArray new: 65536.
+	offset := 1.
+	[ (n := lib read_dataArg1: archive arg2: buffer size_t: buffer size) > 0 ]
+		whileTrue: [
+			result replaceFrom: offset to: offset + n - 1 with: buffer startingAt: 1.
+			offset := offset + n ].
 	^ result
 ]
 
@@ -78,15 +84,25 @@ LAArchiveReader >> contentsOf: aLAArchiveMember [
 LAArchiveReader >> entries [
 
 	| result |
-	result := nil.
-	self withOpenArchive: [ :lib :archive |
-		| holder entries |
-		entries := OrderedCollection new.
-		holder := ArchiveEntry newValueHolder.
-		[ (lib read_next_headerArg1: archive arg2: holder) = ARCHIVE_OK ] whileTrue: [
-			entries add: (LAArchiveMember fromHandle: holder value library: lib) ].
-		result := entries ].
+	result := OrderedCollection new.
+	self entriesDo: [ :lib :archive :ffiEntry |
+		result add: (LAArchiveMember fromHandle: ffiEntry library: lib) ].
 	^ result
+]
+
+{ #category : 'private' }
+LAArchiveReader >> entriesDo: aBlock [
+	"Open the archive once and evaluate aBlock with (lib, archive, ffiEntry) for each
+	entry. A block may finish early by signaling LAAbortReading, which ends the traversal
+	while still closing and freeing the underlying handle."
+
+	[ self withOpenArchive: [ :lib :archive |
+		| holder |
+		holder := ArchiveEntry newValueHolder.
+		[ (lib read_next_headerArg1: archive arg2: holder) = ARCHIVE_OK ]
+			whileTrue: [ aBlock value: lib value: archive value: holder value ] ] ]
+		on: LAAbortReading
+		do: [ :signal | signal return ]
 ]
 
 { #category : 'extracting' }
@@ -103,15 +119,12 @@ LAArchiveReader >> extractTo: aDirectoryReference flags: flags [
 
 	aDirectoryReference ensureCreateDirectory.
 	LAArchiveWorkingDirectory in: aDirectoryReference during: [
-		self withOpenArchive: [ :lib :archive |
-			| holder |
-			holder := ArchiveEntry newValueHolder.
-			[ (lib read_next_headerArg1: archive arg2: holder) = ARCHIVE_OK ] whileTrue: [
-				self
-					assertExtractOk: (lib read_extractArg1: archive arg2: holder value flags: flags)
-					lib: lib
-					archive: archive
-					reference: file ] ] ]
+		self entriesDo: [ :lib :archive :ffiEntry |
+			self
+				assertExtractOk: (lib read_extractArg1: archive arg2: ffiEntry flags: flags)
+				lib: lib
+				archive: archive
+				reference: (file ifNil: [ 'archive' ]) ] ]
 ]
 
 { #category : 'initialization' }
