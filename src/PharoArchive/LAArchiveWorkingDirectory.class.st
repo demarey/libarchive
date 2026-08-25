@@ -15,7 +15,7 @@ Class {
 { #category : 'private' }
 LAArchiveWorkingDirectory class >> chdirTo: aPathString [
 
-	((LibC uniqueInstance) chdirSafe: aPathString) = 0
+	((LibC uniqueInstance) chdir: aPathString) = 0
 		ifFalse: [ LAArchiveError signal: 'chdir failed for: ', aPathString ]
 ]
 
