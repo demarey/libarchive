@@ -74,10 +74,13 @@ jobs:
       - name: Load project
         working-directory: ${{ github.workspace }}
         run: |
+          export PATH="${GITHUB_WORKSPACE}/CIG/lib${PATH:+:$PATH}"
           $PHARO --headless Pharo.image metacello \
             install "gitlocal:///${GITHUB_WORKSPACE}/src" PharoArchive \
             --save
 
       - name: Run tests
         working-directory: ${{ github.workspace }}
-        run: $PHARO --headless Pharo.image test PharoArchive-Tests --fail-on-failure
+        run: |
+          export PATH="${GITHUB_WORKSPACE}/CIG/lib${PATH:+:$PATH}"
+          $PHARO --headless Pharo.image test PharoArchive-Tests --fail-on-failure
