@@ -91,7 +91,7 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: |
           export PATH="${GITHUB_WORKSPACE}/CIG/lib${PATH:+:$PATH}"
-          cat > debug.st <<'EOF'
+          SCRIPT=$(cat <<'STEOF'
           | lib |
           Transcript cr; show: 'CWD=' , (FileSystem workingDirectory fullName).
           Transcript cr; show: 'cigExists=' , ('CIG/lib' asFileReference) exists asString.
@@ -107,8 +107,8 @@ jobs:
                   Transcript cr; show: (frame methodReference ifNotNil: #asString ifNil: [ '<?>' ]) ] ]
           ] on: Error do: [ :e | Transcript cr; show: 'SCOPEERR=' , e printString ].
           Smalltalk snapshot: false andQuit: true.
-          EOF
-          "$PHARO" --headless Pharo.image eval -f "$(cygpath -w "${GITHUB_WORKSPACE}/debug.st")"
+          STEOF
+          "$PHARO" --headless Pharo.image eval "$SCRIPT"
 
       - name: Run tests
         working-directory: ${{ github.workspace }}
