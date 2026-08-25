@@ -21,6 +21,13 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Cache vcpkg build (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/vcpkg-la
+          key: vcpkg-la-libarchive
+
       - name: Install libarchive (Linux)
         if: runner.os == 'Linux'
         run: |
@@ -78,6 +85,30 @@ jobs:
           $PHARO --headless Pharo.image metacello \
             install "gitlocal:///${GITHUB_WORKSPACE}/src" PharoArchive \
             --save
+
+      - name: Debug libarchive FFI load (Windows)
+        if: runner.os == 'Windows'
+        working-directory: ${{ github.workspace }}
+        run: |
+          export PATH="${GITHUB_WORKSPACE}/CIG/lib${PATH:+:$PATH}"
+          cat > /tmp/debug.st <<'EOF'
+          | lib |
+          Transcript cr; show: 'CWD=' , (FileSystem workingDirectory fullName).
+          Transcript cr; show: 'cigExists=' , ('CIG/lib' asFileReference) exists asString.
+          ('CIG/lib' asFileReference) exists ifTrue: [ Transcript cr; show: 'dlls=' , (('CIG/lib' asFileReference) children collect: #basename) asString ].
+          [
+            lib := LibArchive uniqueInstance.
+            Transcript cr; show: 'ffiName=' , (lib ffiLibraryName printString).
+            [ lib read_new ]
+              on: Error
+              do: [ :e |
+                Transcript cr; show: 'LOADERR=' , e messageText.
+                (e signalerContext stack first: 15) do: [ :frame |
+                  Transcript cr; show: (frame methodReference ifNotNil: #asString ifNil: [ '<?>' ]) ] ]
+          ] on: Error do: [ :e | Transcript cr; show: 'SCOPEERR=' , e printString ].
+          Smalltalk snapshot: false andQuit: true.
+          EOF
+          "$PHARO" --headless Pharo.image eval -f /tmp/debug.st
 
       - name: Run tests
         working-directory: ${{ github.workspace }}
