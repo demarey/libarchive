@@ -18,11 +18,12 @@ LibC >> chdirSafe: aPathString [
 
 { #category : '*PharoArchive' }
 LibC >> wchdirUtf16: aPathString [
-	"Change the process working directory using the wide-character _wchdir. Pharo's FFI has no
-	wchar_t external type, so the UTF-16LE (null-terminated) bytes are written into a ByteArray
-	and passed as an int* pointer, which FFI resolves to the address of the buffer."
+	"Change the process working directory using the wide-character _wchdir. Pharo's FFI has
+	no wchar_t external type, so UTF-16LE (null-terminated) bytes are built into a ByteArray
+	referenced by the temporary and passed as an int* pointer (FFI binds the argument by its
+	declared variable name and passes the buffer's address)."
 
-	| stream |
+	| stream utf16 |
 	stream := WriteStream on: (ByteArray new: (aPathString size * 2) + 2).
 	aPathString do: [ :char |
 		| code |
@@ -39,5 +40,6 @@ LibC >> wchdirUtf16: aPathString [
 					nextPut: ((16rDC00 + (v bitAnd: 16r3FF)) bitAnd: 16rFF);
 					nextPut: (((16rDC00 + (v bitAnd: 16r3FF)) bitShift: -8) bitAnd: 16rFF) ] ].
 	stream nextPut: 0; nextPut: 0.
-	^ self ffiCall: #(int _wchdir(const int* aPathString)) with: stream contents
+	utf16 := stream contents.
+	^ self ffiCall: #(int _wchdir(const int* utf16))
 ]
