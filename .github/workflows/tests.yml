@@ -91,7 +91,7 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: |
           export PATH="${GITHUB_WORKSPACE}/CIG/lib${PATH:+:$PATH}"
-          "$PHARO" --headless Pharo.image eval "LAArchiveTest testSelectors do: [ :sel | | t | t := LAArchiveTest new setTestSelector: sel. [ [ t setUp. t perform: sel. Transcript cr; show: 'P ' , sel asString ] on: TestFailure do: [ :e | Transcript cr; show: 'F ' , sel asString , ' :: ' , e messageText ] ] on: Error do: [ :e | Transcript cr; show: 'E ' , sel asString , ' :: ' , e messageText. (e signalerContext stack first: 12) do: [ :fr | Transcript cr; show: (fr methodReference ifNotNil: #asString ifNil: [ '<nil>' ]) ] ]. t tearDown ]. Smalltalk snapshot: false andQuit: true"
+          "$PHARO" --headless Pharo.image eval "LAArchiveTest testSelectors do: [ :sel | | t | t := LAArchiveTest new setTestSelector: sel. [ [ t setUp. t perform: sel. Transcript cr; show: 'P ' , sel asString ] on: TestFailure do: [ :e | Transcript cr; show: 'F ' , sel asString , ' :: ' , e messageText ] ] on: Error do: [ :e | Transcript cr; show: 'E ' , sel asString , ' :: ' , e messageText. (e signalerContext stack first: 12) do: [ :fr | Transcript cr; show: fr printString ] ] ]. t tearDown ]. Smalltalk snapshot: false andQuit: true"
 
       - name: Run tests
         working-directory: ${{ github.workspace }}

@@ -139,6 +139,7 @@ LAArchiveTest >> testExtractToDirectoryPreservesContentAndPermissions [
 LAArchiveTest >> testExtractUsesRealFilePermissions [
 
 	| root folder writer extracted perms |
+	OSPlatform current isWindows ifTrue: [ ^ self ].
 	root := self baseTempDirectory.
 	root ensureCreateDirectory.
 	folder := root / 'payload'.
@@ -311,6 +312,7 @@ LAArchiveTest >> testCanUnzipFromStream [
 LAArchiveTest >> testFilePermissionsFromRealFile [
 
 	| base realFile archive member |
+	OSPlatform current isWindows ifTrue: [ ^ self ].
 	base := self baseTempDirectory.
 	base ensureCreateDirectory.
 	realFile := base / 'secret.txt'.
