@@ -7,7 +7,7 @@ LibC >> chdirPosix: aPathString [
 ]
 
 { #category : '*PharoArchive' }
-LibC >> chdirSafe: aPathString [
+LibC >> chdir: aPathString [
 	"Change the process working directory. Dispatches on the current platform because the
 	symbol differs between POSIX (chdir) and Windows (_wchdir, wide-character)."
 
