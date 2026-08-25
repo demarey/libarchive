@@ -340,11 +340,11 @@ LAArchivePerformanceTest >> windowsBashCommand: aCommandString [
 
 { #category : 'helpers' }
 LAArchivePerformanceTest >> windowsBashPath [
-	"Answer the Windows path of Git Bash's bash.exe, located under Program Files."
+	"Answer the command used to launch Git Bash on Windows. 'bash' is resolved from the
+	process PATH; invoking it by the bare name (rather than its spaced full path) avoids
+	cmd.exe's mis-parsing of a command line that starts with a quoted executable path."
 
-	| programFiles |
-	programFiles := OSEnvironment current at: 'ProgramFiles' ifAbsent: [ 'C:\Program Files' ].
-	^ programFiles, '\Git\bin\bash.exe'
+	^ 'bash'
 ]
 
 { #category : 'helpers' }
