@@ -60,8 +60,6 @@ jobs:
         if: runner.os == 'Windows'
         run: |
           choco install zip unzip -y --no-progress
-          zip --version | head -2
-          unzip --version | head -1
 
       - name: Check libarchive present (relative to Pharo workdir)
         run: |
