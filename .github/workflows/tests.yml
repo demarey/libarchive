@@ -7,29 +7,77 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        pharo: [14]
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Install libarchive
+      - name: Install libarchive (Linux)
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y libarchive-dev
           mkdir -p CIG/lib
           ln -sf /usr/lib/x86_64-linux-gnu/libarchive.so CIG/lib/libarchive.so
 
+      - name: Install libarchive (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install libarchive
+          mkdir -p CIG/lib
+          ln -sf "$(brew --prefix libarchive)/lib/libarchive.dylib" CIG/lib/libarchive.dylib
+
+      - name: Install libarchive (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          set -e
+          mkdir -p CIG/lib
+          VCPKG_ROOT="$(cygpath -u "$RUNNER_TEMP")/vcpkg-la"
+          git clone --depth 1 https://github.com/microsoft/vcpkg.git "$VCPKG_ROOT"
+          cmd //c "$(cygpath -w "$VCPKG_ROOT")\\bootstrap-vcpkg.bat" -disableMetrics
+          "$VCPKG_ROOT/vcpkg.exe" install libarchive:x64-windows --disable-metrics
+          cp "$VCPKG_ROOT/installed/x64-windows/bin/"*.dll CIG/lib/
+          ls -la CIG/lib
+          [ -f CIG/lib/archive.dll ] || { echo "archive.dll not produced by vcpkg libarchive:x64-windows"; exit 1; }
+
+      - name: Check libarchive present (relative to Pharo workdir)
+        run: |
+          cd "${GITHUB_WORKSPACE}"
+          case "${{ matrix.os }}" in
+            ubuntu-*) LIB=CIG/lib/libarchive.so ;;
+            macos-*)  LIB=CIG/lib/libarchive.dylib ;;
+            windows-*) LIB='CIG/lib/archive.dll' ;;
+          esac
+          echo "PWD=$(pwd)"
+          ls -la CIG/lib
+          if [ -L "$LIB" ] && [ ! -e "$LIB" ]; then
+            echo "BROKEN SYMLINK: $LIB -> $(readlink "$LIB") (target does not exist)"; exit 1
+          fi
+          [ -f "$LIB" ] || { echo "MISSING/INVALID: $LIB (Pharo FFI loads it via './CIG/lib' relative to its working dir, which is $PWD)"; exit 1; }
+          echo "OK: $LIB"
+
       - name: Setup Pharo
         uses: pharo-project/pharo-setup-gha@main
         with:
-          version: 14
+          version: ${{ matrix.pharo }}
+          useBashOnWindows: true
 
       - name: Load project
+        working-directory: ${{ github.workspace }}
         run: |
           $PHARO --headless Pharo.image metacello \
             install "gitlocal:///${GITHUB_WORKSPACE}/src" PharoArchive \
             --save
 
       - name: Run tests
+        working-directory: ${{ github.workspace }}
         run: $PHARO --headless Pharo.image test PharoArchive-Tests --fail-on-failure
