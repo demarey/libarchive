@@ -49,8 +49,12 @@ jobs:
           set -e
           mkdir -p CIG/lib
           VCPKG_ROOT="$(cygpath -u "$RUNNER_TEMP")/vcpkg-la"
-          git clone --depth 1 https://github.com/microsoft/vcpkg.git "$VCPKG_ROOT"
-          cmd //c "$(cygpath -w "$VCPKG_ROOT")\\bootstrap-vcpkg.bat" -disableMetrics
+          if [ ! -e "$VCPKG_ROOT/.git" ]; then
+            git clone --depth 1 https://github.com/microsoft/vcpkg.git "$VCPKG_ROOT"
+          fi
+          if [ ! -e "$VCPKG_ROOT/vcpkg.exe" ]; then
+            cmd //c "$(cygpath -w "$VCPKG_ROOT")\\bootstrap-vcpkg.bat" -disableMetrics
+          fi
           "$VCPKG_ROOT/vcpkg.exe" install libarchive:x64-windows --disable-metrics
           cp "$VCPKG_ROOT/installed/x64-windows/bin/"*.dll CIG/lib/
           ls -la CIG/lib
