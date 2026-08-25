@@ -130,8 +130,9 @@ LAArchiveTest >> testExtractToDirectoryPreservesContentAndPermissions [
 		self assert: hello contents equals: 'Hello from memory!'.
 		self assert: (extracted / 'docs') isDirectory.
 		self assert: (extracted / 'docs' / 'notes.md') contents equals: '# Title', String lf.
-		self assert: (hello permissions posixPermission) equals: 8r644.
-		self assert: ((extracted / 'docs') permissions posixPermission) equals: 8r755 ]
+		OSPlatform current isWindows ifFalse: [
+			self assert: (hello permissions posixPermission) equals: 8r644.
+			self assert: ((extracted / 'docs') permissions posixPermission) equals: 8r755 ] ]
 	ensure: [ base ensureDeleteAll ]
 ]
 

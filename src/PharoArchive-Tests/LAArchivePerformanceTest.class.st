@@ -311,9 +311,13 @@ LAArchivePerformanceTest >> readFileCountOfArchiveFile: aFileReference [
 
 { #category : 'helpers' }
 LAArchivePerformanceTest >> runNativeCommand: aCommandString [
-	"Run aCommandString through a shell and answer the shell exit status."
+	"Run aCommandString through a shell and answer the shell exit status. On Windows the
+	POSIX tooling the test relies on (command -v, zip, unzip) is provided by Git Bash, so
+	commands are delegated to it there; elsewhere the system shell is used directly."
 
-	^ LibC uniqueInstance runCommand: aCommandString
+	^ OSPlatform current isWindows
+		ifTrue: [ LibC uniqueInstance runCommand: (self windowsBashCommand: aCommandString) ]
+		ifFalse: [ LibC uniqueInstance runCommand: aCommandString ]
 ]
 
 { #category : 'helpers' }
@@ -324,6 +328,23 @@ LAArchivePerformanceTest >> runNativeShellCommand: aCommandString [
 	exitStatus := self runNativeCommand: aCommandString.
 	self assert: exitStatus isZero
 		description: ('Native command failed with status ', exitStatus printString, ': ', aCommandString)
+]
+
+{ #category : 'helpers' }
+LAArchivePerformanceTest >> windowsBashCommand: aCommandString [
+	"Answer aCommandString wrapped so Git Bash runs it on Windows. The wrapped command must
+	not contain double quotes (the call sites build single-quoted commands only)."
+
+	^ self windowsBashPath, ' -lc "', aCommandString, '"'
+]
+
+{ #category : 'helpers' }
+LAArchivePerformanceTest >> windowsBashPath [
+	"Answer the Windows path of Git Bash's bash.exe, located under Program Files."
+
+	| programFiles |
+	programFiles := OSEnvironment current at: 'ProgramFiles' ifAbsent: [ 'C:\Program Files' ].
+	^ programFiles, '\Git\bin\bash.exe'
 ]
 
 { #category : 'helpers' }
