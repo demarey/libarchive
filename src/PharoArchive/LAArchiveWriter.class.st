@@ -106,14 +106,15 @@ LAArchiveWriter >> addEntryNamed: aName mode: aMode size: aSizeOrNil mtime: aTim
 
 	| entry |
 	entry := lib entry_new.
-	lib entry_set_pathnameArg1: entry arg2: aName.
-	lib entry_set_modeArg1: entry arg2: aMode.
-	aSizeOrNil ifNotNil: [ :s | lib entry_set_sizeArg1: entry arg2: s ].
-	aTimestampOrNil ifNotNil: [ :t | lib entry_set_mtimeArg1: entry arg2: t arg3: 0 ].
-	lib write_headerArg1: archive arg2: entry.
-	aDataBlockOrNil ifNotNil: [ aDataBlockOrNil value ].
-	lib write_finish_entry: archive.
-	lib entry_free: entry.
+	[ 
+		lib entry_set_pathnameArg1: entry arg2: aName.
+		lib entry_set_modeArg1: entry arg2: aMode.
+		aSizeOrNil ifNotNil: [ :s | lib entry_set_sizeArg1: entry arg2: s ].
+		aTimestampOrNil ifNotNil: [ :t | lib entry_set_mtimeArg1: entry arg2: t arg3: 0 ].
+		lib write_headerArg1: archive arg2: entry.
+		aDataBlockOrNil ifNotNil: [ aDataBlockOrNil value ].
+		lib write_finish_entry: archive ]
+	ensure: [ lib entry_free: entry ].
 
 	^ self
 ]
@@ -169,12 +170,21 @@ LAArchiveWriter >> addFileNamed: aRelativePath from: aFileReference [
 
 { #category : 'finalization' }
 LAArchiveWriter >> finish [
+	"Close and free the underlying handle, then clear it. A non-zero write_close result is
+	reported as LAArchiveError so a partial or failed archive does not go unnoticed."
 
+	| result errorMessage reference |
 	archive ifNil: [ ^ self ].
-	lib write_close: archive.
+	result := lib write_close: archive.
+	errorMessage := result = 0
+		ifTrue: [ nil ]
+		ifFalse: [ lib error_string: archive ].
+	reference := file ifNil: [ stream ].
 	lib write_free: archive.
 	archive := nil.
 	lib := nil.
+	result = 0 ifFalse: [
+		LAArchiveError signalOn: reference errorString: errorMessage ].
 	^ self
 ]
 
