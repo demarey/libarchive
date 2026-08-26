@@ -221,6 +221,26 @@ LAArchiveTest >> readArchiveOfFormat: aFormat [
 ]
 
 { #category : 'tests' }
+LAArchiveTest >> testAddFileWithoutNameUsesBasename [
+
+	| base realFile archive member received |
+	base := self baseTempDirectory.
+	base ensureCreateDirectory.
+	realFile := base / 'some-file.txt'.
+	realFile writeStreamDo: [ :stream | stream nextPutAll: 'payload' ].
+	received := base / 'read-back'.
+	[ 
+		archive := LAArchive new.
+		archive addFile: realFile.
+		member := archive memberNamed: 'some-file.txt'.
+		self assert: member isNotNil.
+		archive extractMember: member to: received.
+		self assert: (received / 'some-file.txt') exists.
+		self assert: (received / 'some-file.txt') contents equals: 'payload' ]
+	ensure: [ base ensureDeleteAll ]
+]
+
+{ #category : 'tests' }
 LAArchiveTest >> testAddNonExistentFileRaises [
 
 	self should: [ LAArchive new addFile: (self baseTempDirectory / 'missing-file.txt') ]

@@ -45,7 +45,7 @@ LAArchive >> addDirectory: aName [
 { #category : 'archive operations' }
 LAArchive >> addFile: aFileReference [
 
-	^ self addFile: aFileReference as: aFileReference path pathString
+	^ self addFile: aFileReference as: aFileReference basename
 ]
 
 { #category : 'archive operations' }
