@@ -88,6 +88,22 @@ LAArchive >> addString: aString as: aName [
 ]
 
 { #category : 'private' }
+LAArchive >> assertSafeRelativePathname: aPathname [
+	"Reject archive pathnames that could escape the extraction directory when written
+	to disk: absolute paths and any '..' or empty path segment."
+
+	aPathname ifEmpty: [ ^ self ].
+	aPathname first = $/
+		ifTrue: [ LAArchiveError signal: 'Absolute path in archive entry: ', aPathname ].
+	(aPathname splitOn: $/)
+		withIndexDo: [ :segment :index |
+			segment = '..'
+				ifTrue: [ LAArchiveError signal: 'Unsafe path (''..'') in archive entry: ', aPathname ].
+			(index > 1 and: [ segment isEmpty ])
+				ifTrue: [ LAArchiveError signal: 'Unsafe path (empty segment) in archive entry: ', aPathname ] ]
+]
+
+{ #category : 'private' }
 LAArchive >> assertHasBackingFile [
 
 	file ifNil: [ LAArchiveError signal: 'LAArchive has no backing file; writeToFile: it first' ].
@@ -122,6 +138,7 @@ LAArchive >> extractMember: aMemberOrName to: aDirectoryReference [
 	member := self member: aMemberOrName.
 	member ifNil: [ ^ nil ].
 	member isDirectory ifTrue: [ ^ member ].
+	self assertSafeRelativePathname: member pathname.
 	bytes := self contentsOf: member.
 	target := aDirectoryReference / member pathname.
 	target parent ensureCreateDirectory.
