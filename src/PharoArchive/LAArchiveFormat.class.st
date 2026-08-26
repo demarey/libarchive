@@ -13,6 +13,9 @@ Class {
 	#instVars : [
 		'libarchiveName'
 	],
+	#classInstVars : [
+		'namesCache'
+	],
 	#category : 'PharoArchive',
 	#package : 'PharoArchive'
 }
@@ -38,17 +41,19 @@ LAArchiveFormat class >> libarchiveNameForSymbol: aSymbol [
 
 { #category : 'registry' }
 LAArchiveFormat class >> names [
+	"Answer the symbol-to-libarchive-name map, built once and cached."
 
-	^ Dictionary new
-		at: #zip put: 'zip';
-		at: #tar put: 'pax';
-		at: #sevenzip put: '7zip';
-		at: #cpio put: 'cpio';
-		at: #gnutar put: 'gnutar';
-		at: #ustar put: 'ustar';
-		at: #iso9660 put: 'iso9660';
-		at: #xar put: 'xar';
-		yourself
+	^ namesCache ifNil: [
+		namesCache := Dictionary new
+			at: #zip put: 'zip';
+			at: #tar put: 'pax';
+			at: #sevenzip put: '7zip';
+			at: #cpio put: 'cpio';
+			at: #gnutar put: 'gnutar';
+			at: #ustar put: 'ustar';
+			at: #iso9660 put: 'iso9660';
+			at: #xar put: 'xar';
+			yourself ]
 ]
 
 { #category : 'convenience' }
