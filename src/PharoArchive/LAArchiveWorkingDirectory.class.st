@@ -6,12 +6,16 @@ _wchdir on Windows), since libarchive's native extraction writes relative to the
 current working directory.
 
 Note: changing the working directory affects the whole Pharo process (there is a single
-native thread by default), so code outside this class that resolves relative paths during
-the switch may be affected.
+native thread by default). A shared mutex ensures that concurrent extractions cannot
+interleave their directory switches, but code outside this class that resolves relative
+paths during the switch may still be affected.
 "
 Class {
 	#name : 'LAArchiveWorkingDirectory',
 	#superclass : 'Object',
+	#classVars : [
+		'SwitchingMutex'
+	],
 	#category : 'PharoArchive',
 	#package : 'PharoArchive'
 }
@@ -47,6 +51,12 @@ LAArchiveWorkingDirectory class >> chdirTo: aPathString [
 		ifFalse: [ LAArchiveError signal: 'chdir failed for: ', aPathString ]
 ]
 
+{ #category : 'private' }
+LAArchiveWorkingDirectory class >> switchingMutex [
+
+	^ SwitchingMutex ifNil: [ SwitchingMutex := Mutex new ]
+]
+
 { #category : 'accessing' }
 LAArchiveWorkingDirectory class >> currentWorkingDirectory [
 
@@ -56,13 +66,16 @@ LAArchiveWorkingDirectory class >> currentWorkingDirectory [
 { #category : 'convenience' }
 LAArchiveWorkingDirectory class >> in: aDirectoryReference during: aBlock [
 	"Change the process working directory to aDirectoryReference for the duration of aBlock,
-	then restore it. Raises LAArchiveError if the directory change fails."
+	then restore it. Raises LAArchiveError if the directory change fails. A shared mutex
+	serializes concurrent extractions so their process-global directory switches cannot
+	interleave and corrupt each other's restore."
 
 	| previous |
-	previous := self currentWorkingDirectory.
-	[ self chdirTo: aDirectoryReference fullName.
-	  aBlock value ]
-	ensure: [ self chdirTo: previous ]
+	self switchingMutex critical: [
+		previous := self currentWorkingDirectory.
+		[ self chdirTo: aDirectoryReference fullName.
+		  aBlock value ]
+		ensure: [ self chdirTo: previous ] ]
 ]
 
 { #category : 'private' }
