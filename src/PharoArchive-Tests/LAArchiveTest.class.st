@@ -185,6 +185,104 @@ LAArchiveTest >> testReadBackAndExtractAll [
 ]
 
 { #category : 'helpers' }
+LAArchiveTest >> archiveWithBackingFile [
+
+	| archive base out |
+	archive := LAArchive new.
+	archive
+		addDirectory: 'docs';
+		addString: 'original content' as: 'docs/a.txt';
+		addString: 'root content' as: 'root.txt'.
+	base := self baseTempDirectory.
+	base ensureCreateDirectory.
+	out := base / 'doc.zip'.
+	archive writeToFile: out.
+	^ { (LAArchive new readFrom: out). base }
+]
+
+{ #category : 'tests' }
+LAArchiveTest >> testExtractAllReflectsSetContents [
+
+	| pair readBack base extracted |
+	pair := self archiveWithBackingFile.
+	readBack := pair first.
+	base := pair second.
+	extracted := base / 'out'.
+	[ 
+		readBack setContentsOf: 'docs/a.txt' to: 'edited content'.
+		readBack extractAllTo: extracted.
+		self assert: (extracted / 'docs' / 'a.txt') contents equals: 'edited content'.
+		self assert: (extracted / 'root.txt') contents equals: 'root content' ]
+	ensure: [ base ensureDeleteAll ]
+]
+
+{ #category : 'tests' }
+LAArchiveTest >> testExtractAllReflectsAddedMember [
+
+	| pair readBack base extracted |
+	pair := self archiveWithBackingFile.
+	readBack := pair first.
+	base := pair second.
+	extracted := base / 'out'.
+	[ 
+		readBack addString: 'new file' as: 'new.txt'.
+		readBack extractAllTo: extracted.
+		self assert: (extracted / 'new.txt') contents equals: 'new file'.
+		self assert: (extracted / 'root.txt') contents equals: 'root content' ]
+	ensure: [ base ensureDeleteAll ]
+]
+
+{ #category : 'tests' }
+LAArchiveTest >> testExtractAllReflectsRemoval [
+
+	| pair readBack base extracted |
+	pair := self archiveWithBackingFile.
+	readBack := pair first.
+	base := pair second.
+	extracted := base / 'out'.
+	[ 
+		readBack removeMember: 'root.txt'.
+		readBack extractAllTo: extracted.
+		self assert: (extracted / 'root.txt') exists not.
+		self assert: (extracted / 'docs' / 'a.txt') contents equals: 'original content' ]
+	ensure: [ base ensureDeleteAll ]
+]
+
+{ #category : 'tests' }
+LAArchiveTest >> testExtractAllUnchangedUsesNativePath [
+
+	| pair readBack base extracted |
+	pair := self archiveWithBackingFile.
+	readBack := pair first.
+	base := pair second.
+	extracted := base / 'out'.
+	[ 
+		self deny: readBack isDirty.
+		readBack extractAllTo: extracted.
+		self assert: (extracted / 'root.txt') contents equals: 'root content'.
+		self assert: (extracted / 'docs' / 'a.txt') contents equals: 'original content' ]
+	ensure: [ base ensureDeleteAll ]
+]
+
+{ #category : 'tests' }
+LAArchiveTest >> testWriteToReconcilesModel [
+
+	| pair readBack base extracted |
+	pair := self archiveWithBackingFile.
+	readBack := pair first.
+	base := pair second.
+	extracted := base / 'out'.
+	[ 
+		readBack setContentsOf: 'docs/a.txt' to: 'edited content'.
+		self assert: readBack isDirty.
+		readBack writeToFile: (base / 'doc2.zip').
+		self deny: readBack isDirty.
+		readBack extractAllTo: extracted.
+		self assert: (extracted / 'docs' / 'a.txt') contents equals: 'edited content' ]
+	ensure: [ base ensureDeleteAll ]
+]
+
+{ #category : 'helpers' }
 LAArchiveTest >> readFilePathsOfFormat: aFormat [
 
 	| folder base writer reader filePaths |

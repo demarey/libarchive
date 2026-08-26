@@ -13,7 +13,8 @@ Class {
 	#instVars : [
 		'members',
 		'contents',
-		'file'
+		'file',
+		'isDirty'
 	],
 	#pools : [
 		'ArchiveConstants'
@@ -70,6 +71,7 @@ LAArchive >> addMember: aMember [
 
 	(self memberNamed: aMember pathname) ifNotNil: [
 		LAArchiveError signal: 'Member already present in archive: ', aMember pathname ].
+	isDirty := true.
 	^ members addLast: aMember
 ]
 
@@ -125,12 +127,31 @@ LAArchive >> contentsOf: aMemberOrName [
 
 { #category : 'extracting' }
 LAArchive >> extractAllTo: aDirectoryReference [
-	"Extract all entries natively (fast, preserving permissions and timestamps)."
+	"Extract all entries into aDirectoryReference. When the document model still matches the
+	backing file (no edits since readFrom:), entries are extracted natively (fast, preserving
+	permissions and timestamps). Once the model diverges from the backing file, the model is
+	the source of truth and is extracted instead."
 
 	self assertHasBackingFile.
 	aDirectoryReference ensureCreateDirectory.
-	(LAArchiveReader onFile: file) extractTo: aDirectoryReference.
+	isDirty
+		ifTrue: [ self extractAllFromModelTo: aDirectoryReference ]
+		ifFalse: [ (LAArchiveReader onFile: file) extractTo: aDirectoryReference ].
 	^ self
+]
+
+{ #category : 'extracting' }
+LAArchive >> extractAllFromModelTo: aDirectoryReference [
+	"Serialize the document model to a temporary archive and extract it natively, so the
+	model determines the extracted content while still going through libarchive's permission
+	and timestamp handling. The temporary archive is removed afterwards."
+
+	| tempArchive |
+	tempArchive := aDirectoryReference parent / ('__LAArchiveTemp_', UUID new asString, '.zip').
+	[ 
+		self writeMembersToFile: tempArchive format: #zip.
+		(LAArchiveReader onFile: tempArchive) extractTo: aDirectoryReference ]
+	ensure: [ tempArchive ensureDeleteAll ]
 ]
 
 { #category : 'extracting' }
@@ -153,7 +174,8 @@ LAArchive >> initialize [
 
 	members := OrderedCollection new.
 	contents := Dictionary new.
-	file := nil
+	file := nil.
+	isDirty := false
 ]
 
 { #category : 'private' }
@@ -182,6 +204,12 @@ LAArchive >> members [
 	^ members
 ]
 
+{ #category : 'accessing' }
+LAArchive >> isDirty [
+
+	^ isDirty
+]
+
 { #category : 'archive operations' }
 LAArchive >> numberOfMembers [
 
@@ -205,6 +233,7 @@ LAArchive >> removeMember: aMemberOrName [
 	| member |
 	member := self member: aMemberOrName.
 	member ifNotNil: [
+		isDirty := true.
 		contents removeKey: member pathname ifAbsent: [ ].
 		members remove: member ].
 	^ member
@@ -215,7 +244,9 @@ LAArchive >> replaceMember: aMemberOrName with: newMember [
 
 	| member |
 	member := self member: aMemberOrName.
-	member ifNotNil: [ members replaceAll: member with: newMember ].
+	member ifNotNil: [
+		isDirty := true.
+		members replaceAll: member with: newMember ].
 	^ member
 ]
 
@@ -225,6 +256,7 @@ LAArchive >> setContentsOf: aMemberOrName to: aString [
 	| member index |
 	member := self member: aMemberOrName.
 	member ifNil: [ ^ nil ].
+	isDirty := true.
 	index := members indexOf: member.
 	members at: index put: (LAArchiveMember
 			pathname: member pathname
@@ -238,6 +270,15 @@ LAArchive >> setContentsOf: aMemberOrName to: aString [
 
 { #category : 'writing' }
 LAArchive >> writeTo: aFileReference format: aFormat [
+
+	self writeMembersToFile: aFileReference format: aFormat.
+	file := aFileReference.
+	isDirty := false.
+	^ self
+]
+
+{ #category : 'writing' }
+LAArchive >> writeMembersToFile: aFileReference format: aFormat [
 
 	| writer |
 	writer := LAArchiveWriter toFile: aFileReference format: aFormat.
@@ -255,7 +296,6 @@ LAArchive >> writeTo: aFileReference format: aFormat [
 					mode: member mode
 					mtime: mtimeValue ] ].
 	writer finish.
-	file := aFileReference.
 	^ self
 ]
 
