@@ -12,6 +12,9 @@ Class {
 		'subdir',
 		'contentFile'
 	],
+	#pools : [
+		'ArchiveConstants'
+	],
 	#category : 'PharoArchive-Tests',
 	#package : 'PharoArchive-Tests'
 }
@@ -417,3 +420,109 @@ LAArchiveTest >> testUnknownFormatRaises [
 	self assert: LAArchiveFormat zip libarchiveName equals: 'zip'.
 	self assert: LAArchiveFormat tar libarchiveName equals: 'pax'
 ]
+
+{ #category : 'tests' }
+LAArchiveTest >> testRemoveMember [
+
+	| archive |
+	archive := LAArchive new.
+	archive
+		addString: 'alpha' as: 'a.txt';
+		addString: 'beta' as: 'b.txt'.
+	self assert: archive numberOfMembers equals: 2.
+	archive removeMember: 'a.txt'.
+	self assert: archive numberOfMembers equals: 1.
+	self assert: (archive memberNamed: 'a.txt') isNil.
+	self assert: (archive contentsOf: 'b.txt') equals: 'beta' asByteArray
+]
+
+{ #category : 'tests' }
+LAArchiveTest >> testReplaceMember [
+
+	| archive replacement |
+	archive := LAArchive new.
+	archive addString: 'alpha' as: 'a.txt'.
+	replacement := LAArchiveMember
+		pathname: 'a.txt'
+		size: 3
+		mtime: 0
+		mode: (AE_IFREG bitOr: 8r644)
+		filetype: AE_IFREG.
+	archive replaceMember: 'a.txt' with: replacement.
+	self assert: archive numberOfMembers equals: 1.
+	self assert: (archive members first) == replacement.
+	self assert: (archive memberNamed: 'a.txt') == replacement
+]
+
+{ #category : 'tests' }
+LAArchiveTest >> testExtractSingleMember [
+
+	| base archive received |
+	archive := LAArchive new.
+	archive
+		addString: 'payload-one' as: 'one.txt';
+		addDirectory: 'sub';
+		addString: 'payload-two' as: 'sub/two.txt'.
+	base := self baseTempDirectory.
+	base ensureCreateDirectory.
+	received := base / 'out'.
+	received ensureCreateDirectory.
+	[ 
+		archive extractMember: 'one.txt' to: received.
+		self assert: (received / 'one.txt') exists.
+		self assert: (received / 'one.txt') contents equals: 'payload-one'.
+		self deny: (received / 'sub') exists ]
+	ensure: [ base ensureDeleteAll ]
+]
+
+{ #category : 'helpers' }
+LAArchiveTest >> assertUnsafeMemberRejected: aName [
+
+	| archive base received |
+	archive := LAArchive new.
+	archive addString: 'evil' as: aName.
+	base := self baseTempDirectory.
+	base ensureCreateDirectory.
+	received := base / 'out'.
+	received ensureCreateDirectory.
+	[ self should: [ archive extractMember: aName to: received ] raise: LAArchiveError ]
+	ensure: [ base ensureDeleteAll ]
+]
+
+{ #category : 'tests' }
+LAArchiveTest >> testExtractMemberRejectsTraversal [
+
+	self assertUnsafeMemberRejected: '../evil.txt'
+]
+
+{ #category : 'tests' }
+LAArchiveTest >> testExtractMemberRejectsAbsolutePath [
+
+	self assertUnsafeMemberRejected: '/etc/evil.txt'
+]
+
+{ #category : 'helpers' }
+LAArchiveTest >> runShellCommand: aCommandString [
+
+	^ LibC uniqueInstance runCommand: aCommandString
+]
+
+{ #category : 'tests' }
+LAArchiveTest >> testReadsSymlinkEntry [
+
+	| base archiveFile members |
+	(OSPlatform current isWindows
+		or: [ (self runShellCommand: 'command -v tar >/dev/null 2>&1') isZero not ])
+		ifTrue: [ ^ self ].
+	base := self baseTempDirectory.
+	base ensureCreateDirectory.
+	archiveFile := base / 'sample.tar'.
+	[ 
+		(base / 'real.txt') writeStreamDo: [ :stream | stream nextPutAll: 'real content' ].
+		self runShellCommand: ('cd ', '''', base fullName, '''', ' && ln -s real.txt link.txt').
+		self runShellCommand: ('cd ', '''', base fullName, '''', ' && tar -cf sample.tar link.txt real.txt').
+		members := (LAArchiveReader onFile: archiveFile) entries.
+		self assert: (members anySatisfy: [ :e | e pathname = 'link.txt' and: [ e isSymlink and: [ e symlink = 'real.txt' ] ] ]) ]
+	ensure: [ base ensureDeleteAll ]
+]
+
