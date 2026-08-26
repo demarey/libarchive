@@ -41,6 +41,28 @@ LAArchiveMember class >> pathname: aPathname size: aSize mtime: aMtime mode: aMo
 		filetype: aFiletype
 ]
 
+{ #category : 'comparing' }
+LAArchiveMember >> = anObject [
+
+	^ anObject class = self class
+		and: [ pathname = anObject pathname
+			and: [ size = anObject size
+				and: [ mtime = anObject mtime
+					and: [ mode = anObject mode
+						and: [ filetype = anObject filetype
+							and: [ symlink = anObject symlink ] ] ] ] ] ]
+]
+
+{ #category : 'comparing' }
+LAArchiveMember >> hash [
+
+	^ pathname hash
+		bitXor: (size hash
+				bitXor: (mtime hash
+						bitXor: (mode hash
+								bitXor: (filetype hash bitXor: symlink hash))))
+]
+
 { #category : 'accessing' }
 LAArchiveMember >> filetype [
 

@@ -69,14 +69,14 @@ LAArchiveReader >> contentsOf: aLAArchiveMember [
 LAArchiveReader >> dataForEntry: ffiEntry size: size lib: lib archive: archive [
 	"Read the current entry's raw payload into a ByteArray."
 
-	| buffer result offset n |
+	| buffer result offset readCount |
 	result := ByteArray new: size.
 	buffer := ByteArray new: 65536.
 	offset := 1.
-	[ (n := lib read_dataArg1: archive arg2: buffer size_t: buffer size) > 0 ]
+	[ (readCount := lib read_dataArg1: archive arg2: buffer size_t: buffer size) > 0 ]
 		whileTrue: [
-			result replaceFrom: offset to: offset + n - 1 with: buffer startingAt: 1.
-			offset := offset + n ].
+			result replaceFrom: offset to: offset + readCount - 1 with: buffer startingAt: 1.
+			offset := offset + readCount ].
 	^ result
 ]
 

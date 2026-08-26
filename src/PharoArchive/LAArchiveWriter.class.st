@@ -109,8 +109,8 @@ LAArchiveWriter >> addEntryNamed: aName mode: aMode size: aSizeOrNil mtime: aTim
 	[ 
 		lib entry_set_pathnameArg1: entry arg2: aName.
 		lib entry_set_modeArg1: entry arg2: aMode.
-		aSizeOrNil ifNotNil: [ :s | lib entry_set_sizeArg1: entry arg2: s ].
-		aTimestampOrNil ifNotNil: [ :t | lib entry_set_mtimeArg1: entry arg2: t arg3: 0 ].
+		aSizeOrNil ifNotNil: [ :size | lib entry_set_sizeArg1: entry arg2: size ].
+		aTimestampOrNil ifNotNil: [ :timestamp | lib entry_set_mtimeArg1: entry arg2: timestamp arg3: 0 ].
 		lib write_headerArg1: archive arg2: entry.
 		aDataBlockOrNil ifNotNil: [ aDataBlockOrNil value ].
 		lib write_finish_entry: archive ]
@@ -151,7 +151,7 @@ LAArchiveWriter >> addFileNamed: aRelativePath from: aFileReference [
 	"Stream the file content in chunks, reusing a single buffer. Uses the file's real
 	permissions and modification time."
 
-	| buffer n |
+	| buffer readCount |
 	buffer := ByteArray new: 65536.
 	^ self
 		addEntryNamed: aRelativePath
@@ -160,12 +160,12 @@ LAArchiveWriter >> addFileNamed: aRelativePath from: aFileReference [
 		mtime: (self mtimeOf: aFileReference)
 		dataBlock: [
 			aFileReference binaryReadStreamDo: [ :stream |
-				[ (n := stream readInto: buffer startingAt: 1 count: buffer size) > 0 ]
+				[ (readCount := stream readInto: buffer startingAt: 1 count: buffer size) > 0 ]
 					whileTrue: [
 						lib
 							write_dataArg1: archive
 							arg2: buffer
-							size_t: n ] ] ]
+							size_t: readCount ] ] ]
 ]
 
 { #category : 'finalization' }

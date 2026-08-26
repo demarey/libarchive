@@ -32,5 +32,5 @@ LAFileMetadata >> mtimeOf: aFileReference [
 	aFileReference fileSystem isMemoryFileSystem ifTrue: [ ^ nil ].
 	^ aFileReference modificationTime
 		ifNil: [ nil ]
-		ifNotNil: [ :t | t asUnixTime ]
+		ifNotNil: [ :modificationTime | modificationTime asUnixTime ]
 ]

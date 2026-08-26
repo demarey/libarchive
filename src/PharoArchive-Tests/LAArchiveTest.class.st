@@ -148,7 +148,7 @@ LAArchiveTest >> testExtractUsesRealFilePermissions [
 	root ensureCreateDirectory.
 	folder := root / 'payload'.
 	folder ensureCreateDirectory.
-	(folder / 'secret.txt') writeStreamDo: [ :s | s nextPutAll: 'secret' ].
+	(folder / 'secret.txt') writeStreamDo: [ :stream | stream nextPutAll: 'secret' ].
 	(folder / 'secret.txt') permissions: (FileSystemPermission posixPermissions: 8r600).
 	extracted := root / 'out'.
 	[ 
