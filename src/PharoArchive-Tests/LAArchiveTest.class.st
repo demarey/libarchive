@@ -10,7 +10,8 @@ Class {
 	#instVars : [
 		'fs',
 		'subdir',
-		'contentFile'
+		'contentFile',
+		'base'
 	],
 	#pools : [
 		'ArchiveConstants'
@@ -27,7 +28,16 @@ LAArchiveTest >> setUp [
 	subdir := fs / 'test-zip-dir'.
 	subdir ensureCreateDirectory.
 	contentFile := subdir / 'file.txt'.
-	contentFile writeStreamDo: [ :stream | stream nextPutAll: 'file contents' ]
+	contentFile writeStreamDo: [ :stream | stream nextPutAll: 'file contents' ].
+	base := self baseTempDirectory.
+	base ensureCreateDirectory
+]
+
+{ #category : 'running' }
+LAArchiveTest >> tearDown [
+
+	super tearDown.
+	base ensureDeleteAll
 ]
 
 { #category : 'helpers' }
@@ -73,272 +83,218 @@ LAArchiveTest >> testEntriesRoundTripZip [
 { #category : 'tests' }
 LAArchiveTest >> testDocumentModelRoundTrip [
 
-	| archive base out extracted readBack |
+	| archive out extracted readBack |
 	archive := LAArchive new.
 	archive
 		addDirectory: 'docs';
 		addString: 'Hello document!' as: 'hello.txt';
 		addString: ('# Title', String lf) as: 'docs/notes.md'.
 	self assert: archive numberOfMembers equals: 3.
-	base := self baseTempDirectory.
-	base ensureCreateDirectory.
 	out := base / 'doc.zip'.
 	extracted := base / 'out'.
-	[ 
-		archive writeToFile: out.
-		readBack := LAArchive new readFrom: out.
-		self assert: (readBack memberNames asSortedCollection asArray)
-			equals: #('docs' 'docs/notes.md' 'hello.txt').
-		self assert: (readBack contentsOf: 'hello.txt') equals: 'Hello document!' asByteArray.
-		readBack extractAllTo: extracted.
-		self assert: (extracted / 'hello.txt') contents equals: 'Hello document!'.
-		self assert: (extracted / 'docs') isDirectory ]
-	ensure: [ base ensureDeleteAll ]
+	archive writeToFile: out.
+	readBack := LAArchive new readFrom: out.
+	self assert: (readBack memberNames asSortedCollection asArray)
+		equals: #('docs' 'docs/notes.md' 'hello.txt').
+	self assert: (readBack contentsOf: 'hello.txt') equals: 'Hello document!' asByteArray.
+	readBack extractAllTo: extracted.
+	self assert: (extracted / 'hello.txt') contents equals: 'Hello document!'.
+	self assert: (extracted / 'docs') isDirectory
 ]
 
 { #category : 'tests' }
 LAArchiveTest >> testContentsOfEntry [
 
-	| folder base writer reader hello |
+	| folder writer reader hello |
 	folder := self memoryFilesystemFolder.
-	base := self baseTempDirectory.
-	base ensureCreateDirectory.
-	[ 
-		writer := LAArchiveWriter toFile: (base / 'x.zip') format: #zip.
-		writer addEntriesFromDirectory: folder.
-		writer finish.
-		reader := LAArchiveReader onFile: (base / 'x.zip').
-		hello := reader entries detect: [ :e | e pathname = 'hello.txt' ].
-		self assert: (reader contentsOf: hello) equals: 'Hello from memory!' asByteArray.
-		self assert: hello isFile.
-		self assert: hello size equals: 'Hello from memory!' size ]
-	ensure: [ base ensureDeleteAll ]
+	writer := LAArchiveWriter toFile: (base / 'x.zip') format: #zip.
+	writer addEntriesFromDirectory: folder.
+	writer finish.
+	reader := LAArchiveReader onFile: (base / 'x.zip').
+	hello := reader entries detect: [ :e | e pathname = 'hello.txt' ].
+	self assert: (reader contentsOf: hello) equals: 'Hello from memory!' asByteArray.
+	self assert: hello isFile.
+	self assert: hello size equals: 'Hello from memory!' size
 ]
 
 { #category : 'tests' }
 LAArchiveTest >> testExtractToDirectoryPreservesContentAndPermissions [
 
-	| folder base writer extracted hello |
+	| folder writer extracted hello |
 	folder := self memoryFilesystemFolder.
-	base := self baseTempDirectory.
-	base ensureCreateDirectory.
 	extracted := base / 'out'.
-	[ 
-		writer := LAArchiveWriter toFile: (base / 'x.zip') format: #zip.
-		writer addEntriesFromDirectory: folder.
-		writer finish.
-		(LAArchiveReader onFile: (base / 'x.zip')) extractTo: extracted.
-		hello := extracted / 'hello.txt'.
-		self assert: hello exists.
-		self assert: hello contents equals: 'Hello from memory!'.
-		self assert: (extracted / 'docs') isDirectory.
-		self assert: (extracted / 'docs' / 'notes.md') contents equals: '# Title', String lf.
-		OSPlatform current isWindows ifFalse: [
-			self assert: (hello permissions posixPermission) equals: 8r644.
-			self assert: ((extracted / 'docs') permissions posixPermission) equals: 8r755 ] ]
-	ensure: [ base ensureDeleteAll ]
+	writer := LAArchiveWriter toFile: (base / 'x.zip') format: #zip.
+	writer addEntriesFromDirectory: folder.
+	writer finish.
+	(LAArchiveReader onFile: (base / 'x.zip')) extractTo: extracted.
+	hello := extracted / 'hello.txt'.
+	self assert: hello exists.
+	self assert: hello contents equals: 'Hello from memory!'.
+	self assert: (extracted / 'docs') isDirectory.
+	self assert: (extracted / 'docs' / 'notes.md') contents equals: '# Title', String lf.
+	OSPlatform current isWindows ifFalse: [
+		self assert: (hello permissions posixPermission) equals: 8r644.
+		self assert: ((extracted / 'docs') permissions posixPermission) equals: 8r755 ]
 ]
 
 { #category : 'tests' }
 LAArchiveTest >> testExtractUsesRealFilePermissions [
 
-	| root folder writer extracted perms |
+	| folder writer extracted perms |
 	OSPlatform current isWindows ifTrue: [ ^ self ].
-	root := self baseTempDirectory.
-	root ensureCreateDirectory.
-	folder := root / 'payload'.
+	folder := base / 'payload'.
 	folder ensureCreateDirectory.
 	(folder / 'secret.txt') writeStreamDo: [ :stream | stream nextPutAll: 'secret' ].
 	(folder / 'secret.txt') permissions: (FileSystemPermission posixPermissions: 8r600).
-	extracted := root / 'out'.
-	[ 
-		writer := LAArchiveWriter toFile: (root / 'x.tar') format: #tar.
-		writer addEntriesFromDirectory: folder.
-		writer finish.
-		(LAArchiveReader onFile: (root / 'x.tar')) extractTo: extracted.
-		perms := (extracted / 'secret.txt') permissions posixPermission.
-		self assert: perms equals: 8r600.
-		self assert: (extracted / 'secret.txt') contents equals: 'secret' ]
-	ensure: [ root ensureDeleteAll ]
+	extracted := base / 'out'.
+	writer := LAArchiveWriter toFile: (base / 'x.tar') format: #tar.
+	writer addEntriesFromDirectory: folder.
+	writer finish.
+	(LAArchiveReader onFile: (base / 'x.tar')) extractTo: extracted.
+	perms := (extracted / 'secret.txt') permissions posixPermission.
+	self assert: perms equals: 8r600.
+	self assert: (extracted / 'secret.txt') contents equals: 'secret'
 ]
 
 { #category : 'tests' }
 LAArchiveTest >> testReadBackAndExtractAll [
 
-	| archive out extracted readBack base |
+	| archive out extracted readBack |
 	archive := LAArchive new.
 	archive
 		addDirectory: 'docs';
 		addString: 'content one' as: 'docs/a.txt';
 		addString: 'content two' as: 'root.txt'.
-	base := self baseTempDirectory.
-	base ensureCreateDirectory.
 	out := base / 'doc.zip'.
 	extracted := base / 'extracted'.
-	[ 
-		archive writeToFile: out.
-		readBack := LAArchive new readFrom: out.
-		readBack extractAllTo: extracted.
-		self assert: (extracted / 'docs' / 'a.txt') contents equals: 'content one'.
-		self assert: (extracted / 'root.txt') contents equals: 'content two' ]
-	ensure: [ base ensureDeleteAll ]
+	archive writeToFile: out.
+	readBack := LAArchive new readFrom: out.
+	readBack extractAllTo: extracted.
+	self assert: (extracted / 'docs' / 'a.txt') contents equals: 'content one'.
+	self assert: (extracted / 'root.txt') contents equals: 'content two'
 ]
 
 { #category : 'helpers' }
 LAArchiveTest >> archiveWithBackingFile [
 
-	| archive base out |
+	| archive out |
 	archive := LAArchive new.
 	archive
 		addDirectory: 'docs';
 		addString: 'original content' as: 'docs/a.txt';
 		addString: 'root content' as: 'root.txt'.
-	base := self baseTempDirectory.
-	base ensureCreateDirectory.
 	out := base / 'doc.zip'.
 	archive writeToFile: out.
-	^ { (LAArchive new readFrom: out). base }
+	^ LAArchive new readFrom: out
 ]
 
 { #category : 'tests' }
 LAArchiveTest >> testExtractAllReflectsSetContents [
 
-	| pair readBack base extracted |
-	pair := self archiveWithBackingFile.
-	readBack := pair first.
-	base := pair second.
+	| readBack extracted |
+	readBack := self archiveWithBackingFile.
 	extracted := base / 'out'.
-	[ 
-		readBack setContentsOf: 'docs/a.txt' to: 'edited content'.
-		readBack extractAllTo: extracted.
-		self assert: (extracted / 'docs' / 'a.txt') contents equals: 'edited content'.
-		self assert: (extracted / 'root.txt') contents equals: 'root content' ]
-	ensure: [ base ensureDeleteAll ]
+	readBack setContentsOf: 'docs/a.txt' to: 'edited content'.
+	readBack extractAllTo: extracted.
+	self assert: (extracted / 'docs' / 'a.txt') contents equals: 'edited content'.
+	self assert: (extracted / 'root.txt') contents equals: 'root content'
 ]
 
 { #category : 'tests' }
 LAArchiveTest >> testExtractAllReflectsAddedMember [
 
-	| pair readBack base extracted |
-	pair := self archiveWithBackingFile.
-	readBack := pair first.
-	base := pair second.
+	| readBack extracted |
+	readBack := self archiveWithBackingFile.
 	extracted := base / 'out'.
-	[ 
-		readBack addString: 'new file' as: 'new.txt'.
-		readBack extractAllTo: extracted.
-		self assert: (extracted / 'new.txt') contents equals: 'new file'.
-		self assert: (extracted / 'root.txt') contents equals: 'root content' ]
-	ensure: [ base ensureDeleteAll ]
+	readBack addString: 'new file' as: 'new.txt'.
+	readBack extractAllTo: extracted.
+	self assert: (extracted / 'new.txt') contents equals: 'new file'.
+	self assert: (extracted / 'root.txt') contents equals: 'root content'
 ]
 
 { #category : 'tests' }
 LAArchiveTest >> testExtractAllReflectsRemoval [
 
-	| pair readBack base extracted |
-	pair := self archiveWithBackingFile.
-	readBack := pair first.
-	base := pair second.
+	| readBack extracted |
+	readBack := self archiveWithBackingFile.
 	extracted := base / 'out'.
-	[ 
-		readBack removeMember: 'root.txt'.
-		readBack extractAllTo: extracted.
-		self assert: (extracted / 'root.txt') exists not.
-		self assert: (extracted / 'docs' / 'a.txt') contents equals: 'original content' ]
-	ensure: [ base ensureDeleteAll ]
+	readBack removeMember: 'root.txt'.
+	readBack extractAllTo: extracted.
+	self assert: (extracted / 'root.txt') exists not.
+	self assert: (extracted / 'docs' / 'a.txt') contents equals: 'original content'
 ]
 
 { #category : 'tests' }
 LAArchiveTest >> testExtractAllUnchangedUsesNativePath [
 
-	| pair readBack base extracted |
-	pair := self archiveWithBackingFile.
-	readBack := pair first.
-	base := pair second.
+	| readBack extracted |
+	readBack := self archiveWithBackingFile.
 	extracted := base / 'out'.
-	[ 
-		self deny: readBack isDirty.
-		readBack extractAllTo: extracted.
-		self assert: (extracted / 'root.txt') contents equals: 'root content'.
-		self assert: (extracted / 'docs' / 'a.txt') contents equals: 'original content' ]
-	ensure: [ base ensureDeleteAll ]
+	self deny: readBack isDirty.
+	readBack extractAllTo: extracted.
+	self assert: (extracted / 'root.txt') contents equals: 'root content'.
+	self assert: (extracted / 'docs' / 'a.txt') contents equals: 'original content'
 ]
 
 { #category : 'tests' }
 LAArchiveTest >> testWriteToReconcilesModel [
 
-	| pair readBack base extracted |
-	pair := self archiveWithBackingFile.
-	readBack := pair first.
-	base := pair second.
+	| readBack extracted |
+	readBack := self archiveWithBackingFile.
 	extracted := base / 'out'.
-	[ 
-		readBack setContentsOf: 'docs/a.txt' to: 'edited content'.
-		self assert: readBack isDirty.
-		readBack writeToFile: (base / 'doc2.zip').
-		self deny: readBack isDirty.
-		readBack extractAllTo: extracted.
-		self assert: (extracted / 'docs' / 'a.txt') contents equals: 'edited content' ]
-	ensure: [ base ensureDeleteAll ]
+	readBack setContentsOf: 'docs/a.txt' to: 'edited content'.
+	self assert: readBack isDirty.
+	readBack writeToFile: (base / 'doc2.zip').
+	self deny: readBack isDirty.
+	readBack extractAllTo: extracted.
+	self assert: (extracted / 'docs' / 'a.txt') contents equals: 'edited content'
 ]
 
 { #category : 'helpers' }
 LAArchiveTest >> readFilePathsOfFormat: aFormat [
 
-	| folder base writer reader filePaths |
+	| folder writer reader filePaths |
 	folder := self memoryFilesystemFolder.
-	base := self baseTempDirectory.
-	base ensureCreateDirectory.
-	[ 
-		writer := LAArchiveWriter
-			toFile: (base / 'test.archive')
-			format: aFormat.
-		writer addEntriesFromDirectory: folder.
-		writer finish.
-		reader := LAArchiveReader onFile: (base / 'test.archive').
-		filePaths := reader entries
-			reject: #isDirectory
-			thenCollect: [ :e | e pathname ] ]
-	ensure: [ base ensureDeleteAll ].
+	writer := LAArchiveWriter
+		toFile: (base / 'test.archive')
+		format: aFormat.
+	writer addEntriesFromDirectory: folder.
+	writer finish.
+	reader := LAArchiveReader onFile: (base / 'test.archive').
+	filePaths := reader entries
+		reject: #isDirectory
+		thenCollect: [ :e | e pathname ].
 	^ filePaths asSet
 ]
 
 { #category : 'helpers' }
 LAArchiveTest >> readArchiveOfFormat: aFormat [
 
-	| folder base writer reader |
+	| folder writer reader |
 	folder := self memoryFilesystemFolder.
-	base := self baseTempDirectory.
-	base ensureCreateDirectory.
-	[ 
-		writer := LAArchiveWriter
-			toFile: (base / 'test.archive')
-			format: aFormat.
-		writer addEntriesFromDirectory: folder.
-		writer finish.
-		reader := LAArchiveReader onFile: (base / 'test.archive').
-		^ (reader entries collect: [ :e | e pathname ]) asArray ]
-	ensure: [ base ensureDeleteAll ]
+	writer := LAArchiveWriter
+		toFile: (base / 'test.archive')
+		format: aFormat.
+	writer addEntriesFromDirectory: folder.
+	writer finish.
+	reader := LAArchiveReader onFile: (base / 'test.archive').
+	^ (reader entries collect: [ :e | e pathname ]) asArray
 ]
 
 { #category : 'tests' }
 LAArchiveTest >> testAddFileWithoutNameUsesBasename [
 
-	| base realFile archive member received |
-	base := self baseTempDirectory.
-	base ensureCreateDirectory.
+	| realFile archive member received |
 	realFile := base / 'some-file.txt'.
 	realFile writeStreamDo: [ :stream | stream nextPutAll: 'payload' ].
 	received := base / 'read-back'.
-	[ 
-		archive := LAArchive new.
-		archive addFile: realFile.
-		member := archive memberNamed: 'some-file.txt'.
-		self assert: member isNotNil.
-		archive extractMember: member to: received.
-		self assert: (received / 'some-file.txt') exists.
-		self assert: (received / 'some-file.txt') contents equals: 'payload' ]
-	ensure: [ base ensureDeleteAll ]
+	archive := LAArchive new.
+	archive addFile: realFile.
+	member := archive memberNamed: 'some-file.txt'.
+	self assert: member isNotNil.
+	archive extractMember: member to: received.
+	self assert: (received / 'some-file.txt') exists.
+	self assert: (received / 'some-file.txt') contents equals: 'payload'
 ]
 
 { #category : 'tests' }
@@ -353,74 +309,62 @@ LAArchiveTest >> testAddDuplicateMemberRaises [
 { #category : 'tests' }
 LAArchiveTest >> testAddNonExistentFileRaises [
 
-	self should: [ LAArchive new addFile: (self baseTempDirectory / 'missing-file.txt') ]
+	self should: [ LAArchive new addFile: (base / 'missing-file.txt') ]
 		raise: FileDoesNotExistException
 ]
 
 { #category : 'tests' }
 LAArchiveTest >> testAddTreeWithContentShouldSucceed [
 
-	| base out writer extracted |
-	base := self baseTempDirectory.
-	base ensureCreateDirectory.
+	| out writer extracted |
 	out := base / 'out.zip'.
 	writer := LAArchiveWriter toFile: out format: #zip.
 	writer addEntriesFromDirectory: subdir parent.
 	writer finish.
 	extracted := base / 'extracted'.
-	[ 
-		(LAArchiveReader onFile: out) extractTo: extracted.
-		self assert: (extracted / 'test-zip-dir' / 'file.txt') exists.
-		self assert: (extracted / 'test-zip-dir' / 'file.txt') contents equals: 'file contents' ]
-	ensure: [ base ensureDeleteAll ]
+	(LAArchiveReader onFile: out) extractTo: extracted.
+	self assert: (extracted / 'test-zip-dir' / 'file.txt') exists.
+	self assert: (extracted / 'test-zip-dir' / 'file.txt') contents equals: 'file contents'
 ]
 
 { #category : 'tests' }
 LAArchiveTest >> testAddTreeWithSubDirectoriesShouldSucceed [
 
-	| base out writer extracted subSubDir |
+	| out writer extracted subSubDir |
 	subSubDir := subdir / 'subSubDir'.
 	subSubDir ensureCreateDirectory.
 	(subSubDir / 'fileInSubSubDir') ensureCreateFile.
-	base := self baseTempDirectory.
-	base ensureCreateDirectory.
 	out := base / 'out.zip'.
 	writer := LAArchiveWriter toFile: out format: #zip.
 	writer addEntriesFromDirectory: subdir parent.
 	writer finish.
 	extracted := base / 'extracted'.
-	[ 
-		(LAArchiveReader onFile: out) extractTo: extracted.
-		self assert: (extracted / 'test-zip-dir' / 'subSubDir') isDirectory.
-		self assert: (extracted / 'test-zip-dir' / 'subSubDir' / 'fileInSubSubDir') isFile.
-		self deny: (extracted / 'subSubDir') isDirectory ]
-	ensure: [ base ensureDeleteAll ]
+	(LAArchiveReader onFile: out) extractTo: extracted.
+	self assert: (extracted / 'test-zip-dir' / 'subSubDir') isDirectory.
+	self assert: (extracted / 'test-zip-dir' / 'subSubDir' / 'fileInSubSubDir') isFile.
+	self deny: (extracted / 'subSubDir') isDirectory
 ]
 
 { #category : 'tests' }
 LAArchiveTest >> testManyFilesSmoke [
 
-	| base out writer reader count |
-	base := self baseTempDirectory.
-	base ensureCreateDirectory.
+	| out writer reader count |
 	out := base / 'many.zip'.
-	[ 
-		writer := LAArchiveWriter toFile: out format: #zip.
-		1 to: 500 do: [ :i |
-			writer
-				addFileNamed: ('file-', i asString)
-				content: ('content ', i asString) asByteArray ].
-		writer finish.
-		reader := LAArchiveReader onFile: out.
-		count := reader entries size.
-		self assert: count equals: 500 ]
-	ensure: [ base ensureDeleteAll ]
+	writer := LAArchiveWriter toFile: out format: #zip.
+	1 to: 500 do: [ :i |
+		writer
+			addFileNamed: ('file-', i asString)
+			content: ('content ', i asString) asByteArray ].
+	writer finish.
+	reader := LAArchiveReader onFile: out.
+	count := reader entries size.
+	self assert: count equals: 500
 ]
 
 { #category : 'tests' }
 LAArchiveTest >> testCanUnzipFromStream [
 
-	| base stream writer bytes reader extracted |
+	| stream writer bytes reader extracted |
 	stream := (ByteArray new: 0) writeStream.
 	writer := LAArchiveWriter toStream: stream format: #zip.
 	writer addFileNamed: 'hello.txt' content: 'file contents' asByteArray.
@@ -428,32 +372,25 @@ LAArchiveTest >> testCanUnzipFromStream [
 	writer finish.
 	bytes := stream contents.
 	reader := LAArchiveReader onBytes: bytes.
-	base := self baseTempDirectory.
-	base ensureCreateDirectory.
 	extracted := base / 'extracted'.
-	[ 
-		reader extractTo: extracted.
-		self assert: (extracted / 'hello.txt') exists.
-		self assert: (extracted / 'hello.txt') contents equals: 'file contents'.
-		self assert: (extracted / 'docs') isDirectory ]
-	ensure: [ base ensureDeleteAll ]
+	reader extractTo: extracted.
+	self assert: (extracted / 'hello.txt') exists.
+	self assert: (extracted / 'hello.txt') contents equals: 'file contents'.
+	self assert: (extracted / 'docs') isDirectory
 ]
 
 { #category : 'tests' }
 LAArchiveTest >> testFilePermissionsFromRealFile [
 
-	| base realFile archive member |
+	| realFile archive member |
 	OSPlatform current isWindows ifTrue: [ ^ self ].
-	base := self baseTempDirectory.
-	base ensureCreateDirectory.
 	realFile := base / 'secret.txt'.
 	realFile writeStreamDo: [ :stream | stream nextPutAll: 'secret' ].
 	realFile permissions: (FileSystemPermission posixPermissions: 8r600).
 	archive := LAArchive new.
 	archive addFile: realFile as: 'secret.txt'.
 	member := archive memberNamed: 'secret.txt'.
-	[ self assert: (member mode bitAnd: 8r7777) equals: 8r600 ]
-	ensure: [ base ensureDeleteAll ]
+	self assert: (member mode bitAnd: 8r7777) equals: 8r600
 ]
 
 { #category : 'tests' }
@@ -470,16 +407,12 @@ LAArchiveTest >> testWriteRoundTripFormats [
 { #category : 'tests' }
 LAArchiveTest >> testWriteToFileDuring [
 
-	| base out |
-	base := self baseTempDirectory.
-	base ensureCreateDirectory.
+	| out |
 	out := base / 'x.zip'.
-	[ 
-		LAArchiveWriter writeToFile: out format: #zip during: [ :writer |
-			writer addFileNamed: 'a.txt' content: 'hi' asByteArray ].
-		self assert: out exists.
-		self assert: (LAArchiveReader onFile: out) entries size equals: 1 ]
-	ensure: [ base ensureDeleteAll ]
+	LAArchiveWriter writeToFile: out format: #zip during: [ :writer |
+		writer addFileNamed: 'a.txt' content: 'hi' asByteArray ].
+	self assert: out exists.
+	self assert: (LAArchiveReader onFile: out) entries size equals: 1
 ]
 
 { #category : 'tests' }
@@ -496,19 +429,15 @@ LAArchiveTest >> testWriteToStreamDuring [
 { #category : 'tests' }
 LAArchiveTest >> testDuringEnsuresFinishOnException [
 
-	| base out |
-	base := self baseTempDirectory.
-	base ensureCreateDirectory.
+	| out |
 	out := base / 'x.zip'.
-	[ 
-		self should: [
-			LAArchiveWriter writeToFile: out format: #zip during: [ :writer |
-				writer addFileNamed: 'a.txt' content: 'hi' asByteArray.
-				self error: 'boom' ] ]
-			raise: Error.
-		self assert: out exists.
-		self assert: (LAArchiveReader onFile: out) entries size equals: 1 ]
-	ensure: [ base ensureDeleteAll ]
+	self should: [
+		LAArchiveWriter writeToFile: out format: #zip during: [ :writer |
+			writer addFileNamed: 'a.txt' content: 'hi' asByteArray.
+			self error: 'boom' ] ]
+		raise: Error.
+	self assert: out exists.
+	self assert: (LAArchiveReader onFile: out) entries size equals: 1
 ]
 
 { #category : 'tests' }
@@ -555,36 +484,29 @@ LAArchiveTest >> testReplaceMember [
 { #category : 'tests' }
 LAArchiveTest >> testExtractSingleMember [
 
-	| base archive received |
+	| archive received |
 	archive := LAArchive new.
 	archive
 		addString: 'payload-one' as: 'one.txt';
 		addDirectory: 'sub';
 		addString: 'payload-two' as: 'sub/two.txt'.
-	base := self baseTempDirectory.
-	base ensureCreateDirectory.
 	received := base / 'out'.
 	received ensureCreateDirectory.
-	[ 
-		archive extractMember: 'one.txt' to: received.
-		self assert: (received / 'one.txt') exists.
-		self assert: (received / 'one.txt') contents equals: 'payload-one'.
-		self deny: (received / 'sub') exists ]
-	ensure: [ base ensureDeleteAll ]
+	archive extractMember: 'one.txt' to: received.
+	self assert: (received / 'one.txt') exists.
+	self assert: (received / 'one.txt') contents equals: 'payload-one'.
+	self deny: (received / 'sub') exists
 ]
 
 { #category : 'helpers' }
 LAArchiveTest >> assertUnsafeMemberRejected: aName [
 
-	| archive base received |
+	| archive received |
 	archive := LAArchive new.
 	archive addString: 'evil' as: aName.
-	base := self baseTempDirectory.
-	base ensureCreateDirectory.
 	received := base / 'out'.
 	received ensureCreateDirectory.
-	[ self should: [ archive extractMember: aName to: received ] raise: LAArchiveError ]
-	ensure: [ base ensureDeleteAll ]
+	self should: [ archive extractMember: aName to: received ] raise: LAArchiveError
 ]
 
 { #category : 'tests' }
@@ -608,19 +530,15 @@ LAArchiveTest >> runShellCommand: aCommandString [
 { #category : 'tests' }
 LAArchiveTest >> testReadsSymlinkEntry [
 
-	| base archiveFile members |
+	| archiveFile members |
 	(OSPlatform current isWindows
 		or: [ (self runShellCommand: 'command -v tar >/dev/null 2>&1') isZero not ])
 		ifTrue: [ ^ self ].
-	base := self baseTempDirectory.
-	base ensureCreateDirectory.
 	archiveFile := base / 'sample.tar'.
-	[ 
-		(base / 'real.txt') writeStreamDo: [ :stream | stream nextPutAll: 'real content' ].
-		self runShellCommand: ('cd ', '''', base fullName, '''', ' && ln -s real.txt link.txt').
-		self runShellCommand: ('cd ', '''', base fullName, '''', ' && tar -cf sample.tar link.txt real.txt').
-		members := (LAArchiveReader onFile: archiveFile) entries.
-		self assert: (members anySatisfy: [ :e | e pathname = 'link.txt' and: [ e isSymlink and: [ e symlink = 'real.txt' ] ] ]) ]
-	ensure: [ base ensureDeleteAll ]
+	(base / 'real.txt') writeStreamDo: [ :stream | stream nextPutAll: 'real content' ].
+	self runShellCommand: ('cd ', '''', base fullName, '''', ' && ln -s real.txt link.txt').
+	self runShellCommand: ('cd ', '''', base fullName, '''', ' && tar -cf sample.tar link.txt real.txt').
+	members := (LAArchiveReader onFile: archiveFile) entries.
+	self assert: (members anySatisfy: [ :e | e pathname = 'link.txt' and: [ e isSymlink and: [ e symlink = 'real.txt' ] ] ])
 ]
 
