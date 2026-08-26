@@ -241,6 +241,15 @@ LAArchiveTest >> testAddFileWithoutNameUsesBasename [
 ]
 
 { #category : 'tests' }
+LAArchiveTest >> testAddDuplicateMemberRaises [
+
+	| archive |
+	archive := LAArchive new.
+	archive addString: 'first' as: 'dup.txt'.
+	self should: [ archive addString: 'second' as: 'dup.txt' ] raise: LAArchiveError
+]
+
+{ #category : 'tests' }
 LAArchiveTest >> testAddNonExistentFileRaises [
 
 	self should: [ LAArchive new addFile: (self baseTempDirectory / 'missing-file.txt') ]

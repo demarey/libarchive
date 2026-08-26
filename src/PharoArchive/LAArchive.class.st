@@ -68,6 +68,8 @@ LAArchive >> addFile: aFileReference as: aName [
 { #category : 'archive operations' }
 LAArchive >> addMember: aMember [
 
+	(self memberNamed: aMember pathname) ifNotNil: [
+		LAArchiveError signal: 'Member already present in archive: ', aMember pathname ].
 	^ members addLast: aMember
 ]
 
